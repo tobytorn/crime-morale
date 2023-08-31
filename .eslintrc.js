@@ -5,6 +5,7 @@ module.exports = {
     es6: true,
     greasemonkey: true,
     node: true,
+    jquery: true,
   },
   extends: ['eslint:recommended'],
   parserOptions: {
