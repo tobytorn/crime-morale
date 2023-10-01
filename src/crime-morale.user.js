@@ -79,12 +79,12 @@
       cardSkimmingDelays.push(subCrimes[i]?.crimeInfo?.timeWhenUpdated - now);
     }
 
-    const $texts = $('[class^=crimeOption___] span[class^=statusText___]');
+    const $texts = $('[class*=crimeOption___] span[class*=statusText___]');
     if ($texts.length === 0) {
       if (cardSkimmingUpdateInterval === 0) {
         // This is the first fetch.
         cardSkimmingUpdateInterval = setInterval(() => {
-          const $textsInInterval = $('[class^=crimeOption___] span[class^=statusText___]');
+          const $textsInInterval = $('[class*=crimeOption___] span[class*=statusText___]');
           if ($textsInInterval.length !== cardSkimmingDelays.length) {
             return;
           }
