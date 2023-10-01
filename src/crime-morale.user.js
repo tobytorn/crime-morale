@@ -54,9 +54,12 @@
 
   function updateCardSkimmingDelay($texts, delays) {
     delays.forEach((delay, index) => {
+      if (delay < 0) {
+        return;
+      }
       const minutes = Math.floor(delay / 60);
       const color = minutes < 10 ? 't-red' : minutes < 30 ? 't-yellow' : minutes < 60 ? 't-green' : 't-gray-c';
-      $texts.eq(index).html(`<span class="${color}">${minutes}m</span>`);
+      $texts.eq(index).html(`<span class="${color}">${minutes}'</span>`);
     });
   }
 
