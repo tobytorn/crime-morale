@@ -4,7 +4,7 @@
 // @description Show the demoralization effect in Crime 2.0
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.1.0
+// @version     1.2.0
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -51,6 +51,9 @@
 
   const cardSkimmingDelays = [];
   let cardSkimmingUpdateInterval = 0;
+
+  const burglaryData = [];
+  let burglaryUpdateInterval = 0;
 
   function updateCardSkimmingDelay($texts, delays) {
     delays.forEach((delay, index) => {
@@ -102,9 +105,81 @@
     clearInterval(cardSkimmingUpdateInterval);
   }
 
-  async function onCrimeData(data) {
+  function updateBurglary($options, data) {
+    const now = Math.floor(Date.now() / 1000);
+    data.forEach((property, index) => {
+      const $option = $options.eq(index);
+      const confidence = property.confidence;
+      const $icon = $option.find('[class*=propertyIcon___]');
+      $icon.find('.cm-confidence').remove();
+      if (confidence >= 50) {
+        $icon.css('position', 'relative');
+        $icon.append(`<div class="cm-confidence t-green" style="
+          position: absolute;
+          bottom: 0;
+          width: 100%;
+          text-align: center;
+          padding: 2px;
+          box-sizing: border-box;
+          background: var(--default-bg-panel-color);
+        ">${property.confidence}%</div>`);
+      }
+      const lifetime = Math.floor((property.expire - now) / 3600);
+      const $title = $option.find('[class*=crimeOptionSection___]').first();
+      $title.find('.cm-lifetime').remove();
+      if (lifetime > 0 && lifetime <= 48) {
+        const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
+        $title.css('position', 'relative');
+        $title.append(`<div class="cm-lifetime ${color}" style="
+          position: absolute;
+          top: 0;
+          right: 0;
+          padding: 2px;
+          background: var(--default-bg-panel-color);
+          border: 1px solid darkgray;
+        ">${lifetime}h</div>`);
+      }
+    });
+  }
+
+  async function checkBurglary(params, data) {
+    if (params.get('typeID') !== '7') {
+      return;
+    }
+    const props = data.DB?.crimesByType?.properties;
+    if (!props?.length) {
+      return;
+    }
+    burglaryData.length = 0;
+    burglaryData.push(...props);
+
+    const $options = $('[class*=crimeOptionGroup___]').last().find('[class*=crimeOption___]');
+    if ($options.length === 0) {
+      if (burglaryUpdateInterval === 0) {
+        // This is the first fetch.
+        burglaryUpdateInterval = setInterval(() => {
+          const $optionsInInterval = $('[class*=crimeOptionGroup___]').last().find('[class*=crimeOption___]');
+          if ($optionsInInterval.length !== burglaryData.length) {
+            return;
+          }
+          clearInterval(burglaryUpdateInterval);
+          updateBurglary($optionsInInterval, burglaryData);
+          burglaryData.length = 0;
+        }, 1000);
+      }
+      return;
+    }
+    if ($options.length === burglaryData.length) {
+      updateBurglary($options, burglaryData);
+    }
+    burglaryData.length = 0;
+    clearInterval(burglaryUpdateInterval);
+  }
+
+  async function onCrimeData(params, data) {
     await checkDemoralization(data);
     await checkCardSkimming(data);
+    await checkBurglary(params, data);
   }
 
   function interceptFetch() {
@@ -118,7 +193,7 @@
         const params = new URLSearchParams(url.search);
         if (url.pathname === '/loader.php' && params.get('sid') === 'crimesData') {
           const clonedRsp = rsp.clone();
-          await onCrimeData(await clonedRsp.json());
+          await onCrimeData(params, await clonedRsp.json());
         }
       } catch {
         // ignore
