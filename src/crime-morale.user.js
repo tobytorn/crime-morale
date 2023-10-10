@@ -4,7 +4,7 @@
 // @description Show the demoralization effect in Crime 2.0
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.2.0
+// @version     1.3.0
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -26,6 +26,7 @@
 
   const LOCAL_STORAGE_PREFIX = 'CRIME_MORALE_';
   const STORAGE_MORALE = 'morale';
+  const STYLE_ELEMENT_ID = 'CRIME-MORALE-STYLE';
 
   function getLocalStorage(key, defaultValue) {
     const value = window.localStorage.getItem(LOCAL_STORAGE_PREFIX + key);
@@ -38,6 +39,18 @@
 
   const getValue = window.GM_getValue || getLocalStorage;
   const setValue = window.GM_setValue || setLocalStorage;
+
+  function addStyle(css) {
+    const style =
+      document.getElementById(STYLE_ELEMENT_ID) ??
+      (function () {
+        const style = document.createElement('style');
+        style.id = STYLE_ELEMENT_ID;
+        document.head.appendChild(style);
+        return style;
+      })();
+    style.appendChild(document.createTextNode(css));
+  }
 
   async function checkDemoralization(data) {
     const demMod = (data.DB || {}).demMod;
@@ -176,10 +189,60 @@
     clearInterval(burglaryUpdateInterval);
   }
 
+  let pickpocketingOb = null;
+
+  async function checkPickpocketing(params) {
+    if (params.get('typeID') !== '5') {
+      stopPickpocketing();
+      return;
+    }
+    const $wrapper = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+    if ($wrapper.find('.crime-option').length === 0) {
+      stopPickpocketing();
+      return;
+    }
+    startPickpocketing($wrapper);
+  }
+
+  function startPickpocketing($wrapper) {
+    if (pickpocketingOb) {
+      return;
+    }
+    pickpocketingOb = new MutationObserver(function () {
+      let isMovingSoon = false;
+      $wrapper.find('.crime-option').each(function () {
+        const timeStr = $(this).find('[class*=clock___]').text() ?? '0s';
+        const timeMatch = timeStr.trim().match(/^(\d+)s$/);
+        const seconds = parseInt(timeMatch?.[1] ?? '60');
+        isMovingSoon = isMovingSoon || seconds <= 1;
+        $(this).toggleClass('cm-overlay', isMovingSoon);
+
+        const iconPosStr = $(this).find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
+        const iconPosMatch = iconPosStr?.match(/(-\d+)px/);
+        const iconPos = parseInt(iconPosMatch?.[1] ?? '');
+        $(this).toggleClass('cm-pickpocketing-easy', [-34, -102, -272].includes(iconPos));
+      });
+    });
+    pickpocketingOb.observe($wrapper[0], {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  }
+
+  function stopPickpocketing() {
+    if (!pickpocketingOb) {
+      return;
+    }
+    pickpocketingOb.disconnect();
+    pickpocketingOb = null;
+  }
+
   async function onCrimeData(params, data) {
     await checkDemoralization(data);
     await checkCardSkimming(data);
     await checkBurglary(params, data);
+    await checkPickpocketing(params);
   }
 
   function interceptFetch() {
@@ -225,6 +288,37 @@
     $('#crime-morale-value').text(morale.toString());
   }
 
+  function renderStyle() {
+    addStyle(`
+      .cm-overlay {
+        position: relative;
+      }
+      .cm-overlay:after {
+        content: '';
+        position: absolute;
+        background: repeating-linear-gradient(135deg, #2223, #2223 70px, #0003 70px, #0003 80px);
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 900000;
+      }
+      .cm-pickpocketing-easy [class*=timerCircle___] [class*=icon___] {
+        filter: invert(45%) sepia(20%) saturate(1416%) hue-rotate(80deg);
+      }
+    `);
+  }
+
   interceptFetch();
   renderMorale();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('readystatechange', () => {
+      if (document.readyState === 'interactive') {
+        renderStyle();
+      }
+    });
+  } else {
+    renderStyle();
+  }
 })();
