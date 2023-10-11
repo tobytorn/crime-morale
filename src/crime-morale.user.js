@@ -4,7 +4,7 @@
 // @description Show the demoralization effect in Crime 2.0
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.0
+// @version     1.3.1
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -190,18 +190,32 @@
   }
 
   let pickpocketingOb = null;
+  let pickpocketingInterval = 0;
 
   async function checkPickpocketing(params) {
     if (params.get('typeID') !== '5') {
-      stopPickpocketing();
+      if (params.get('typeID') !== null) {
+        stopPickpocketing();
+      }
       return;
     }
     const $wrapper = $('.pickpocketing-root [class*=crimeOptionGroup___]');
-    if ($wrapper.find('.crime-option').length === 0) {
-      stopPickpocketing();
-      return;
+    if ($wrapper.length === 0) {
+      if (pickpocketingInterval === 0) {
+        // This is the first fetch.
+        pickpocketingInterval = setInterval(() => {
+          const $wrapperInInterval = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+          if ($wrapperInInterval.length === 0) {
+            return;
+          }
+          clearInterval(pickpocketingInterval);
+          pickpocketingInterval = 0;
+          startPickpocketing($wrapperInInterval);
+        }, 1000);
+      }
+    } else {
+      startPickpocketing($wrapper);
     }
-    startPickpocketing($wrapper);
   }
 
   function startPickpocketing($wrapper) {
@@ -209,18 +223,37 @@
       return;
     }
     pickpocketingOb = new MutationObserver(function () {
+      const now = Math.floor(Date.now() / 1000);
       let isMovingSoon = false;
       $wrapper.find('.crime-option').each(function () {
-        const timeStr = $(this).find('[class*=clock___]').text() ?? '0s';
-        const timeMatch = timeStr.trim().match(/^(\d+)s$/);
-        const seconds = parseInt(timeMatch?.[1] ?? '60');
-        isMovingSoon = isMovingSoon || seconds <= 1;
-        $(this).toggleClass('cm-overlay', isMovingSoon);
+        const top = Math.floor($(this).position().top);
+        const oldTop = parseInt($(this).attr('data-cm-top'));
+        if (top !== oldTop) {
+          $(this).attr('data-cm-top', top.toString());
+          $(this).attr('data-cm-timestamp', now.toString());
+        }
+        const timestamp = parseInt($(this).attr('data-cm-timestamp')) || now;
+        const isLocked = $(this).is('[class*=locked___]');
+        isMovingSoon = isMovingSoon || isLocked || now - timestamp <= 1;
+        $(this)
+          .find('[class*=commitButtonSection___]')
+          .toggleClass('cm-overlay', isMovingSoon && !isLocked);
 
         const iconPosStr = $(this).find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
         const iconPosMatch = iconPosStr?.match(/(-\d+)px/);
         const iconPos = parseInt(iconPosMatch?.[1] ?? '');
-        $(this).toggleClass('cm-pickpocketing-easy', [-34, -102, -272].includes(iconPos));
+        let isEasy = false;
+        let isMedium = false;
+        if ([-34, -272].includes(iconPos)) {
+          // -34: Distracted
+          // -272: Stumbling
+          isEasy = true;
+        } else if (iconPos === -102) {
+          // -102: Listening to music
+          isMedium = true;
+        }
+        $(this).toggleClass('cm-pickpocketing-easy', isEasy);
+        $(this).toggleClass('cm-pickpocketing-medium', isMedium);
       });
     });
     pickpocketingOb.observe($wrapper[0], {
@@ -305,6 +338,21 @@
       }
       .cm-pickpocketing-easy [class*=timerCircle___] [class*=icon___] {
         filter: invert(45%) sepia(20%) saturate(1416%) hue-rotate(80deg);
+      }
+      .cm-pickpocketing-easy [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: #2cac46 !important;
+      }
+      .cm-pickpocketing-easy [class*=commitButton___] {
+        border: 2px solid #2cac46;
+      }
+      .cm-pickpocketing-medium [class*=timerCircle___] [class*=icon___] {
+        filter: invert(25%) sepia(30%) saturate(1000%) hue-rotate(30deg);
+      }
+      .cm-pickpocketing-medium [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: #95af14 !important;
+      }
+      .cm-pickpocketing-medium [class*=commitButton___] {
+        border: 2px solid #95af14;
       }
     `);
   }
