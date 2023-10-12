@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name        Crime Morale
 // @namespace   https://github.com/tobytorn
-// @description Show the demoralization effect in Crime 2.0
+// @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.1
+// @version     1.3.2
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -189,7 +189,42 @@
     clearInterval(burglaryUpdateInterval);
   }
 
+  // const PP_STATUS_CYCLING = 0;
+  const PP_STATUS_DISTRACTED = 34;
+  const PP_STATUS_MUSIC = 102;
+  // const PP_STATUS_LOITERING = 136;
+  const PP_STATUS_PHONE = 170;
+  const PP_STATUS_RUNNING = 204;
+  // const PP_STATUS_SOLICITING = 238;
+  const PP_STATUS_STUMBLING = 272;
+  const PP_STATUS_WALKING = 306;
+  // const PP_STATUS_BEGGING = 340;
+  const PP_MARKS = {
+    'Drunk Man': { level: 1, bestActivity: PP_STATUS_STUMBLING },
+    'Drunk Woman': { level: 1, bestActivity: PP_STATUS_STUMBLING },
+    'Homeless Person': { level: 1, bestActivity: '' },
+    Junkie: { level: 1, bestActivity: PP_STATUS_STUMBLING },
+    'Elderly Man': { level: 1, bestActivity: PP_STATUS_WALKING },
+    'Elderly Woman': { level: 1, bestActivity: PP_STATUS_WALKING },
+    'Classy Lady': { level: 2, bestActivity: PP_STATUS_PHONE },
+    Laborer: { level: 2, bestActivity: PP_STATUS_DISTRACTED },
+    'Postal Worker': { level: 2, bestActivity: PP_STATUS_DISTRACTED }, // not sure
+    'Young Man': { level: 2, bestActivity: PP_STATUS_MUSIC },
+    'Young Woman': { level: 2, bestActivity: PP_STATUS_DISTRACTED },
+    Student: { level: 2, bestActivity: PP_STATUS_MUSIC },
+    Jogger: { level: 3, bestActivity: PP_STATUS_WALKING },
+    'Rich Kid': { level: 3, bestActivity: PP_STATUS_MUSIC },
+    'Sex Worker': { level: 3, bestActivity: PP_STATUS_DISTRACTED },
+    Thug: { level: 3, bestActivity: PP_STATUS_RUNNING },
+    Businessman: { level: 4, bestActivity: PP_STATUS_PHONE },
+    Businesswoman: { level: 4, bestActivity: PP_STATUS_PHONE },
+    'Gang Member': { level: 4, bestActivity: '' },
+    Cyclist: { level: 5, bestActivity: '' },
+    Mobster: { level: 5, bestActivity: '' },
+    'Police Officer': { level: 5, bestActivity: PP_STATUS_RUNNING },
+  };
   let pickpocketingOb = null;
+  let pickpocketingExitOb = null;
   let pickpocketingInterval = 0;
 
   async function checkPickpocketing(params) {
@@ -218,44 +253,66 @@
     }
   }
 
-  function startPickpocketing($wrapper) {
-    if (pickpocketingOb) {
-      return;
-    }
-    pickpocketingOb = new MutationObserver(function () {
-      const now = Math.floor(Date.now() / 1000);
-      let isMovingSoon = false;
-      $wrapper.find('.crime-option').each(function () {
-        const top = Math.floor($(this).position().top);
-        const oldTop = parseInt($(this).attr('data-cm-top'));
-        if (top !== oldTop) {
-          $(this).attr('data-cm-top', top.toString());
-          $(this).attr('data-cm-timestamp', now.toString());
-        }
-        const timestamp = parseInt($(this).attr('data-cm-timestamp')) || now;
-        const isLocked = $(this).is('[class*=locked___]');
-        isMovingSoon = isMovingSoon || isLocked || now - timestamp <= 1;
-        $(this)
-          .find('[class*=commitButtonSection___]')
-          .toggleClass('cm-overlay', isMovingSoon && !isLocked);
+  function refreshPickpocketing() {
+    const $wrapper = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+    const now = Date.now();
+    // Releasing reference to removed elements to avoid memory leak
+    pickpocketingExitOb.disconnect();
+    let isBelowExiting = false;
+    $wrapper.find('.crime-option').each(function () {
+      const $this = $(this);
+      const top = Math.floor($this.position().top);
+      const oldTop = parseInt($this.attr('data-cm-top'));
+      if (top !== oldTop) {
+        $this.attr('data-cm-top', top.toString());
+        $this.attr('data-cm-timestamp', now.toString());
+      }
+      const timestamp = parseInt($this.attr('data-cm-timestamp')) || now;
+      const isLocked = $this.is('[class*=locked___]');
+      const isExiting = $this.is('[class*=exitActive___]');
+      const isRecentlyMoved = now - timestamp <= 1000;
+      $this
+        .find('[class*=commitButtonSection___]')
+        .toggleClass('cm-overlay', !isLocked && (isBelowExiting || isRecentlyMoved))
+        .toggleClass('cm-overlay-fade', !isLocked && !isBelowExiting && isRecentlyMoved);
+      isBelowExiting = isBelowExiting || isExiting;
 
-        const iconPosStr = $(this).find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
+      if (!$this.is('[class*=cm-pp-level-]')) {
+        const markAndTime = $this.find('[class*=titleAndProps___] > *:first-child').text().toLowerCase();
+        const iconPosStr = $this.find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
         const iconPosMatch = iconPosStr?.match(/(-\d+)px/);
-        const iconPos = parseInt(iconPosMatch?.[1] ?? '');
-        let isEasy = false;
-        let isMedium = false;
-        if ([-34, -272].includes(iconPos)) {
-          // -34: Distracted
-          // -272: Stumbling
-          isEasy = true;
-        } else if (iconPos === -102) {
-          // -102: Listening to music
-          isMedium = true;
+        const iconPos = -parseInt(iconPosMatch?.[1] ?? '');
+        let level = 'na';
+        for (const [mark, markInfo] of Object.entries(PP_MARKS)) {
+          if (markAndTime.startsWith(mark.toLowerCase())) {
+            if (iconPos === markInfo.bestActivity) {
+              level = markInfo.level.toString();
+            }
+            break;
+          }
         }
-        $(this).toggleClass('cm-pickpocketing-easy', isEasy);
-        $(this).toggleClass('cm-pickpocketing-medium', isMedium);
-      });
+        $this.addClass(`cm-pp-level-${level}`);
+      }
+
+      pickpocketingExitOb.observe(this, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
     });
+  }
+
+  function startPickpocketing($wrapper) {
+    if (!pickpocketingOb) {
+      pickpocketingOb = new MutationObserver(refreshPickpocketing);
+      pickpocketingExitOb = new MutationObserver(function (mutations) {
+        for (const mutation of mutations) {
+          if (
+            mutation.oldValue.indexOf('exitActive___') < 0 &&
+            mutation.target.className.indexOf('exitActive___') >= 0
+          ) {
+            refreshPickpocketing();
+            return;
+          }
+        }
+      });
+    }
     pickpocketingOb.observe($wrapper[0], {
       childList: true,
       characterData: true,
@@ -269,6 +326,8 @@
     }
     pickpocketingOb.disconnect();
     pickpocketingOb = null;
+    pickpocketingExitOb.disconnect();
+    pickpocketingExitOb = null;
   }
 
   async function onCrimeData(params, data) {
@@ -323,6 +382,27 @@
 
   function renderStyle() {
     addStyle(`
+      :root {
+        --cm-pp-level-1: #37b24d;
+        --cm-pp-level-2: #95af14;
+        --cm-pp-level-3: #f59f00;
+        --cm-pp-level-4: #f76707;
+        --cm-pp-level-5: #f03e3e;
+        --cm-pp-filter-level-1: brightness(0) saturate(100%) invert(61%) sepia(11%) saturate(2432%) hue-rotate(79deg) brightness(91%) contrast(96%);
+        --cm-pp-filter-level-2: brightness(0) saturate(100%) invert(62%) sepia(80%) saturate(2102%) hue-rotate(32deg) brightness(99%) contrast(84%);
+        --cm-pp-filter-level-3: brightness(0) saturate(100%) invert(59%) sepia(59%) saturate(950%) hue-rotate(2deg) brightness(98%) contrast(103%);
+        --cm-pp-filter-level-4: brightness(0) saturate(100%) invert(53%) sepia(67%) saturate(3848%) hue-rotate(355deg) brightness(96%) contrast(102%);
+        --cm-pp-filter-level-5: brightness(0) saturate(100%) invert(73%) sepia(74%) saturate(7466%) hue-rotate(335deg) brightness(93%) contrast(104%);
+      }
+      @keyframes cm-fade-out {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
+      }
       .cm-overlay {
         position: relative;
       }
@@ -336,23 +416,48 @@
         height: 100%;
         z-index: 900000;
       }
-      .cm-pickpocketing-easy [class*=timerCircle___] [class*=icon___] {
-        filter: invert(45%) sepia(20%) saturate(1416%) hue-rotate(80deg);
+      .cm-overlay-fade:after {
+        animation-name: cm-fade-out;
+        animation-duration: 0.2s;
+        animation-timing-function: ease-in;
+        animation-fill-mode: forwards;
+        animation-delay: 0.4s
       }
-      .cm-pickpocketing-easy [class*=timerCircle___] .CircularProgressbar-path {
-        stroke: #2cac46 !important;
+      .cm-pp-level-1 {
+        color: var(--cm-pp-level-1);
       }
-      .cm-pickpocketing-easy [class*=commitButton___] {
-        border: 2px solid #2cac46;
+      .cm-pp-level-2 {
+        color: var(--cm-pp-level-2);
       }
-      .cm-pickpocketing-medium [class*=timerCircle___] [class*=icon___] {
-        filter: invert(25%) sepia(30%) saturate(1000%) hue-rotate(30deg);
+      .cm-pp-level-3 {
+        color: var(--cm-pp-level-3);
       }
-      .cm-pickpocketing-medium [class*=timerCircle___] .CircularProgressbar-path {
-        stroke: #95af14 !important;
+      .cm-pp-level-1 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-1);
       }
-      .cm-pickpocketing-medium [class*=commitButton___] {
-        border: 2px solid #95af14;
+      .cm-pp-level-2 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-2);
+      }
+      .cm-pp-level-3 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-3);
+      }
+      .cm-pp-level-1 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-1) !important;
+      }
+      .cm-pp-level-2 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-2) !important;
+      }
+      .cm-pp-level-3 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-3) !important;
+      }
+      .cm-pp-level-1 [class*=commitButton___] {
+        border: 2px solid var(--cm-pp-level-1);
+      }
+      .cm-pp-level-2 [class*=commitButton___] {
+        border: 2px solid var(--cm-pp-level-2);
+      }
+      .cm-pp-level-3 [class*=commitButton___] {
+        border: 2px solid var(--cm-pp-level-3);
       }
     `);
   }
