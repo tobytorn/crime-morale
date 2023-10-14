@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.2
+// @version     1.3.3
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -212,16 +212,16 @@
     'Young Man': { level: 2, bestActivity: PP_STATUS_MUSIC },
     'Young Woman': { level: 2, bestActivity: PP_STATUS_DISTRACTED },
     Student: { level: 2, bestActivity: PP_STATUS_MUSIC },
-    Jogger: { level: 3, bestActivity: PP_STATUS_WALKING },
     'Rich Kid': { level: 3, bestActivity: PP_STATUS_MUSIC },
     'Sex Worker': { level: 3, bestActivity: PP_STATUS_DISTRACTED },
     Thug: { level: 3, bestActivity: PP_STATUS_RUNNING },
+    Jogger: { level: 4, bestActivity: PP_STATUS_WALKING },
     Businessman: { level: 4, bestActivity: PP_STATUS_PHONE },
     Businesswoman: { level: 4, bestActivity: PP_STATUS_PHONE },
     'Gang Member': { level: 4, bestActivity: '' },
+    Mobster: { level: 4, bestActivity: '' },
     Cyclist: { level: 5, bestActivity: '' },
-    Mobster: { level: 5, bestActivity: '' },
-    'Police Officer': { level: 5, bestActivity: PP_STATUS_RUNNING },
+    'Police Officer': { level: 6, bestActivity: PP_STATUS_RUNNING },
   };
   let pickpocketingOb = null;
   let pickpocketingExitOb = null;
