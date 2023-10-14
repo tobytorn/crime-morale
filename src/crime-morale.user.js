@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.3
+// @version     1.3.4
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -292,6 +292,13 @@
           }
         }
         $this.addClass(`cm-pp-level-${level}`);
+
+        const physical = $this.find('[class*=physicalPropsButton___]').text();
+        if (physical.match(/Athletic|Muscular/i)) {
+          $this.addClass(`cm-pp-physical-hard`);
+        } else if (physical.match(/Heavyset/i)) {
+          $this.addClass(`cm-pp-physical-easy`);
+        }
       }
 
       pickpocketingExitOb.observe(this, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
@@ -458,6 +465,14 @@
       }
       .cm-pp-level-3 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-3);
+      }
+      .cm-pp-physical-easy:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
+        content: '\u2714 ';
+        color: var(--cm-pp-level-2);
+      }
+      .cm-pp-physical-hard:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
+        content: '\u2718 ';
+        color: var(--cm-pp-level-4);
       }
     `);
   }
