@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.4
+// @version     1.3.5
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -189,39 +189,66 @@
     clearInterval(burglaryUpdateInterval);
   }
 
-  // const PP_STATUS_CYCLING = 0;
-  const PP_STATUS_DISTRACTED = 34;
-  const PP_STATUS_MUSIC = 102;
-  // const PP_STATUS_LOITERING = 136;
-  const PP_STATUS_PHONE = 170;
-  const PP_STATUS_RUNNING = 204;
-  // const PP_STATUS_SOLICITING = 238;
-  const PP_STATUS_STUMBLING = 272;
-  const PP_STATUS_WALKING = 306;
-  // const PP_STATUS_BEGGING = 340;
+  const PP_CYCLING = 0;
+  const PP_DISTRACTED = 34; // eslint-disable-line no-unused-vars
+  const PP_MUSIC = 102;
+  const PP_LOITERING = 136;
+  const PP_PHONE = 170;
+  const PP_RUNNING = 204;
+  const PP_SOLICITING = 238;
+  const PP_STUMBLING = 272;
+  const PP_WALKING = 306;
+  const PP_BEGGING = 340;
+
+  const PP_SKINNY = 'Skinny';
+  const PP_AVERAGE = 'Average';
+  const PP_ATHLETIC = 'Athletic';
+  const PP_MUSCULAR = 'Muscular';
+  const PP_HEAVYSET = 'Heavyset';
+  const PP_ANY_BUILD = [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET];
+
   const PP_MARKS = {
-    'Drunk Man': { level: 1, bestActivity: PP_STATUS_STUMBLING },
-    'Drunk Woman': { level: 1, bestActivity: PP_STATUS_STUMBLING },
-    'Homeless Person': { level: 1, bestActivity: '' },
-    Junkie: { level: 1, bestActivity: PP_STATUS_STUMBLING },
-    'Elderly Man': { level: 1, bestActivity: PP_STATUS_WALKING },
-    'Elderly Woman': { level: 1, bestActivity: PP_STATUS_WALKING },
-    'Classy Lady': { level: 2, bestActivity: PP_STATUS_PHONE },
-    Laborer: { level: 2, bestActivity: PP_STATUS_DISTRACTED },
-    'Postal Worker': { level: 2, bestActivity: PP_STATUS_DISTRACTED }, // not sure
-    'Young Man': { level: 2, bestActivity: PP_STATUS_MUSIC },
-    'Young Woman': { level: 2, bestActivity: PP_STATUS_DISTRACTED },
-    Student: { level: 2, bestActivity: PP_STATUS_MUSIC },
-    'Rich Kid': { level: 3, bestActivity: PP_STATUS_MUSIC },
-    'Sex Worker': { level: 3, bestActivity: PP_STATUS_DISTRACTED },
-    Thug: { level: 3, bestActivity: PP_STATUS_RUNNING },
-    Jogger: { level: 4, bestActivity: PP_STATUS_WALKING },
-    Businessman: { level: 4, bestActivity: PP_STATUS_PHONE },
-    Businesswoman: { level: 4, bestActivity: PP_STATUS_PHONE },
-    'Gang Member': { level: 4, bestActivity: '' },
-    Mobster: { level: 4, bestActivity: '' },
-    Cyclist: { level: 5, bestActivity: '' },
-    'Police Officer': { level: 6, bestActivity: PP_STATUS_RUNNING },
+    'Drunk Man': { level: 1, status: [PP_STUMBLING], build: PP_ANY_BUILD },
+    'Drunk Woman': { level: 1, status: [PP_STUMBLING], build: PP_ANY_BUILD },
+    'Homeless Person': { level: 1, status: [PP_BEGGING], build: [PP_AVERAGE] },
+    Junkie: { level: 1, status: [PP_STUMBLING], build: PP_ANY_BUILD },
+    'Elderly Man': { level: 1, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET] },
+    'Elderly Woman': { level: 1, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET] },
+
+    'Young Man': { level: 2, status: [PP_MUSIC], build: [PP_AVERAGE, PP_ATHLETIC] },
+    'Young Woman': { level: 2, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE] },
+    Student: { level: 2, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE] },
+    'Classy Lady': {
+      level: 2,
+      status: [PP_PHONE, PP_WALKING],
+      build: [PP_SKINNY, PP_HEAVYSET],
+      bestBuild: [PP_HEAVYSET],
+    },
+    Laborer: { level: 2, status: [PP_PHONE], build: PP_ANY_BUILD },
+    'Postal Worker': { level: 2, status: [PP_WALKING], build: [PP_AVERAGE] },
+
+    'Rich Kid': {
+      level: 3,
+      status: [PP_PHONE],
+      build: [PP_SKINNY, PP_ATHLETIC, PP_HEAVYSET],
+      bestBuild: [PP_ATHLETIC, PP_HEAVYSET],
+    },
+    'Sex Worker': { level: 3, status: [PP_SOLICITING, PP_PHONE], build: [PP_AVERAGE, PP_ATHLETIC] },
+    Thug: { level: 3, status: [PP_RUNNING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC], bestBuild: [PP_SKINNY] },
+
+    Businessman: {
+      level: 4,
+      status: [PP_PHONE],
+      build: [PP_AVERAGE, PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET],
+      bestBuild: [PP_MUSCULAR, PP_HEAVYSET],
+    },
+    Businesswoman: { level: 4, status: [PP_PHONE], build: [PP_AVERAGE, PP_ATHLETIC] },
+    'Gang Member': { level: 4, status: [PP_LOITERING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC] },
+    Jogger: { level: 4, status: [PP_WALKING], build: [PP_SKINNY, PP_ATHLETIC], bestBuild: [PP_ATHLETIC] },
+    Mobster: { level: 4, status: [PP_WALKING], build: [PP_SKINNY] },
+
+    Cyclist: { level: 5, status: [PP_CYCLING], build: [] },
+    'Police Officer': { level: 6, status: [PP_RUNNING], build: [] },
   };
   let pickpocketingOb = null;
   let pickpocketingExitOb = null;
@@ -278,26 +305,21 @@
       isBelowExiting = isBelowExiting || isExiting;
 
       if (!$this.is('[class*=cm-pp-level-]')) {
-        const markAndTime = $this.find('[class*=titleAndProps___] > *:first-child').text().toLowerCase();
+        const markAndTime = $this.find('[class*=titleAndProps___] > *:first-child').text().trim().toLowerCase();
         const iconPosStr = $this.find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
         const iconPosMatch = iconPosStr?.match(/(-\d+)px/);
         const iconPos = -parseInt(iconPosMatch?.[1] ?? '');
-        let level = 'na';
+        const build = $this.find('[class*=physicalPropsButton___]').text().trim().toLowerCase();
         for (const [mark, markInfo] of Object.entries(PP_MARKS)) {
           if (markAndTime.startsWith(mark.toLowerCase())) {
-            if (iconPos === markInfo.bestActivity) {
-              level = markInfo.level.toString();
+            if (markInfo.status.includes(iconPos) && markInfo.build.some((b) => build.startsWith(b.toLowerCase()))) {
+              $this.addClass(`cm-pp-level-${markInfo.level}`);
+              if (markInfo.bestBuild?.some((b) => build.startsWith(b.toLowerCase()))) {
+                $this.addClass(`cm-pp-best-build`);
+              }
             }
             break;
           }
-        }
-        $this.addClass(`cm-pp-level-${level}`);
-
-        const physical = $this.find('[class*=physicalPropsButton___]').text();
-        if (physical.match(/Athletic|Muscular/i)) {
-          $this.addClass(`cm-pp-physical-hard`);
-        } else if (physical.match(/Heavyset/i)) {
-          $this.addClass(`cm-pp-physical-easy`);
         }
       }
 
@@ -439,6 +461,9 @@
       .cm-pp-level-3 {
         color: var(--cm-pp-level-3);
       }
+      .cm-pp-level-4 {
+        color: var(--cm-pp-level-4);
+      }
       .cm-pp-level-1 [class*=timerCircle___] [class*=icon___] {
         filter: var(--cm-pp-filter-level-1);
       }
@@ -447,6 +472,9 @@
       }
       .cm-pp-level-3 [class*=timerCircle___] [class*=icon___] {
         filter: var(--cm-pp-filter-level-3);
+      }
+      .cm-pp-level-4 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-4);
       }
       .cm-pp-level-1 [class*=timerCircle___] .CircularProgressbar-path {
         stroke: var(--cm-pp-level-1) !important;
@@ -457,6 +485,9 @@
       .cm-pp-level-3 [class*=timerCircle___] .CircularProgressbar-path {
         stroke: var(--cm-pp-level-3) !important;
       }
+      .cm-pp-level-4 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-4) !important;
+      }
       .cm-pp-level-1 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-1);
       }
@@ -466,13 +497,13 @@
       .cm-pp-level-3 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-3);
       }
-      .cm-pp-physical-easy:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
-        content: '\u2714 ';
-        color: var(--cm-pp-level-2);
+      .cm-pp-level-4 [class*=commitButton___] {
+        border: 2px solid var(--cm-pp-level-4);
       }
-      .cm-pp-physical-hard:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
-        content: '\u2718 ';
-        color: var(--cm-pp-level-4);
+      .cm-pp-best-build:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
+        content: '\u2713 ';
+        font-weight: bold;
+        color: var(--cm-pp-level-2);
       }
     `);
   }
