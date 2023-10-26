@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.5
+// @version     1.3.6-dev
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -247,8 +247,8 @@
     Jogger: { level: 4, status: [PP_WALKING], build: [PP_SKINNY, PP_ATHLETIC], bestBuild: [PP_ATHLETIC] },
     Mobster: { level: 4, status: [PP_WALKING], build: [PP_SKINNY] },
 
-    Cyclist: { level: 5, status: [PP_CYCLING], build: [] },
-    'Police Officer': { level: 6, status: [PP_RUNNING], build: [] },
+    Cyclist: { level: 5, status: [PP_CYCLING], build: PP_ANY_BUILD, bestBuild: ['1.52 m', `5'0"`] },
+    'Police Officer': { level: 6, status: [PP_RUNNING], build: PP_ANY_BUILD, bestBuild: [PP_SKINNY, '1.52 m', `5'0"`] },
   };
   let pickpocketingOb = null;
   let pickpocketingExitOb = null;
@@ -307,12 +307,12 @@
       if (!$this.is('[class*=cm-pp-level-]')) {
         const markAndTime = $this.find('[class*=titleAndProps___] > *:first-child').text().trim().toLowerCase();
         const iconPosStr = $this.find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
-        const iconPosMatch = iconPosStr?.match(/(-\d+)px/);
+        const iconPosMatch = iconPosStr?.match(/(-?\d+)px/);
         const iconPos = -parseInt(iconPosMatch?.[1] ?? '');
         const build = $this.find('[class*=physicalPropsButton___]').text().trim().toLowerCase();
         for (const [mark, markInfo] of Object.entries(PP_MARKS)) {
           if (markAndTime.startsWith(mark.toLowerCase())) {
-            if (markInfo.status.includes(iconPos) && markInfo.build.some((b) => build.startsWith(b.toLowerCase()))) {
+            if (markInfo.status.includes(iconPos) && markInfo.build.some((b) => build.includes(b.toLowerCase()))) {
               $this.addClass(`cm-pp-level-${markInfo.level}`);
               if (markInfo.bestBuild?.some((b) => build.startsWith(b.toLowerCase()))) {
                 $this.addClass(`cm-pp-best-build`);
@@ -414,14 +414,16 @@
       :root {
         --cm-pp-level-1: #37b24d;
         --cm-pp-level-2: #95af14;
-        --cm-pp-level-3: #f59f00;
+        --cm-pp-level-3: #f5b913;
         --cm-pp-level-4: #f76707;
-        --cm-pp-level-5: #f03e3e;
+        --cm-pp-level-5: #e01111;
+        --cm-pp-level-6: #a016eb;
         --cm-pp-filter-level-1: brightness(0) saturate(100%) invert(61%) sepia(11%) saturate(2432%) hue-rotate(79deg) brightness(91%) contrast(96%);
         --cm-pp-filter-level-2: brightness(0) saturate(100%) invert(62%) sepia(80%) saturate(2102%) hue-rotate(32deg) brightness(99%) contrast(84%);
-        --cm-pp-filter-level-3: brightness(0) saturate(100%) invert(59%) sepia(59%) saturate(950%) hue-rotate(2deg) brightness(98%) contrast(103%);
+        --cm-pp-filter-level-3: brightness(0) saturate(100%) invert(71%) sepia(67%) saturate(588%) hue-rotate(354deg) brightness(98%) contrast(97%);
         --cm-pp-filter-level-4: brightness(0) saturate(100%) invert(53%) sepia(67%) saturate(3848%) hue-rotate(355deg) brightness(96%) contrast(102%);
-        --cm-pp-filter-level-5: brightness(0) saturate(100%) invert(73%) sepia(74%) saturate(7466%) hue-rotate(335deg) brightness(93%) contrast(104%);
+        --cm-pp-filter-level-5: brightness(0) saturate(100%) invert(12%) sepia(72%) saturate(5597%) hue-rotate(354deg) brightness(105%) contrast(101%);
+        --cm-pp-filter-level-6: brightness(0) saturate(100%) invert(26%) sepia(84%) saturate(4389%) hue-rotate(271deg) brightness(86%) contrast(119%);
       }
       @keyframes cm-fade-out {
         from {
@@ -464,6 +466,12 @@
       .cm-pp-level-4 {
         color: var(--cm-pp-level-4);
       }
+      .cm-pp-level-5 {
+        color: var(--cm-pp-level-5);
+      }
+      .cm-pp-level-6 {
+        color: var(--cm-pp-level-6);
+      }
       .cm-pp-level-1 [class*=timerCircle___] [class*=icon___] {
         filter: var(--cm-pp-filter-level-1);
       }
@@ -476,6 +484,12 @@
       .cm-pp-level-4 [class*=timerCircle___] [class*=icon___] {
         filter: var(--cm-pp-filter-level-4);
       }
+      .cm-pp-level-5 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-5);
+      }
+      .cm-pp-level-6 [class*=timerCircle___] [class*=icon___] {
+        filter: var(--cm-pp-filter-level-6);
+      }
       .cm-pp-level-1 [class*=timerCircle___] .CircularProgressbar-path {
         stroke: var(--cm-pp-level-1) !important;
       }
@@ -487,6 +501,12 @@
       }
       .cm-pp-level-4 [class*=timerCircle___] .CircularProgressbar-path {
         stroke: var(--cm-pp-level-4) !important;
+      }
+      .cm-pp-level-5 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-5) !important;
+      }
+      .cm-pp-level-6 [class*=timerCircle___] .CircularProgressbar-path {
+        stroke: var(--cm-pp-level-6) !important;
       }
       .cm-pp-level-1 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-1);
