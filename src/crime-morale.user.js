@@ -195,7 +195,7 @@
   const PP_LOITERING = 136;
   const PP_PHONE = 170;
   const PP_RUNNING = 204;
-  const PP_SOLICITING = 238;
+  const PP_SOLICITING = 238; // eslint-disable-line no-unused-vars
   const PP_STUMBLING = 272;
   const PP_WALKING = 306;
   const PP_BEGGING = 340;
@@ -212,11 +212,11 @@
     'Drunk Woman': { level: 1, status: [PP_STUMBLING], build: PP_ANY_BUILD },
     'Homeless Person': { level: 1, status: [PP_BEGGING], build: [PP_AVERAGE] },
     Junkie: { level: 1, status: [PP_STUMBLING], build: PP_ANY_BUILD },
-    'Elderly Man': { level: 1, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET] },
-    'Elderly Woman': { level: 1, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET] },
+    'Elderly Man': { level: 1, status: [PP_WALKING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC, PP_HEAVYSET] },
+    'Elderly Woman': { level: 1, status: [PP_WALKING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC, PP_HEAVYSET] },
 
-    'Young Man': { level: 2, status: [PP_MUSIC], build: [PP_AVERAGE, PP_ATHLETIC] },
-    'Young Woman': { level: 2, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE] },
+    'Young Man': { level: 2, status: [PP_MUSIC], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC] },
+    'Young Woman': { level: 2, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE, PP_HEAVYSET] },
     Student: { level: 2, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE] },
     'Classy Lady': {
       level: 2,
@@ -229,22 +229,32 @@
 
     'Rich Kid': {
       level: 3,
-      status: [PP_PHONE],
+      status: [PP_WALKING, PP_PHONE],
       build: [PP_SKINNY, PP_ATHLETIC, PP_HEAVYSET],
-      bestBuild: [PP_ATHLETIC, PP_HEAVYSET],
+      bestBuild: [PP_ATHLETIC],
     },
-    'Sex Worker': { level: 3, status: [PP_SOLICITING, PP_PHONE], build: [PP_AVERAGE, PP_ATHLETIC] },
+    'Sex Worker': { level: 3, status: [PP_PHONE], build: [PP_SKINNY, PP_AVERAGE], bestBuild: [PP_AVERAGE] },
     Thug: { level: 3, status: [PP_RUNNING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC], bestBuild: [PP_SKINNY] },
 
     Businessman: {
       level: 4,
       status: [PP_PHONE],
-      build: [PP_AVERAGE, PP_ATHLETIC, PP_MUSCULAR, PP_HEAVYSET],
+      build: [PP_AVERAGE, PP_MUSCULAR, PP_HEAVYSET],
       bestBuild: [PP_MUSCULAR, PP_HEAVYSET],
     },
-    Businesswoman: { level: 4, status: [PP_PHONE], build: [PP_AVERAGE, PP_ATHLETIC] },
-    'Gang Member': { level: 4, status: [PP_LOITERING], build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC] },
-    Jogger: { level: 4, status: [PP_WALKING], build: [PP_SKINNY, PP_ATHLETIC], bestBuild: [PP_ATHLETIC] },
+    Businesswoman: {
+      level: 4,
+      status: [PP_PHONE],
+      build: [PP_SKINNY, PP_AVERAGE, PP_ATHLETIC],
+      bestBuild: [PP_ATHLETIC],
+    },
+    'Gang Member': {
+      level: 4,
+      status: [PP_LOITERING],
+      build: [PP_AVERAGE, PP_ATHLETIC, PP_MUSCULAR],
+      bestBuild: [PP_AVERAGE],
+    },
+    Jogger: { level: 4, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR], bestBuild: [PP_MUSCULAR] },
     Mobster: { level: 4, status: [PP_WALKING], build: [PP_SKINNY] },
 
     Cyclist: { level: 5, status: [PP_CYCLING], build: PP_ANY_BUILD, bestBuild: ['1.52 m', `5'0"`] },
