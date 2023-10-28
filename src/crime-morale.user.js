@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.6
+// @version     1.3.7
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -324,7 +324,7 @@
           if (markAndTime.startsWith(mark.toLowerCase())) {
             if (markInfo.status.includes(iconPos) && markInfo.build.some((b) => build.includes(b.toLowerCase()))) {
               $this.addClass(`cm-pp-level-${markInfo.level}`);
-              if (markInfo.bestBuild?.some((b) => build.startsWith(b.toLowerCase()))) {
+              if (markInfo.bestBuild?.some((b) => build.includes(b.toLowerCase()))) {
                 $this.addClass(`cm-pp-best-build`);
               }
             }
