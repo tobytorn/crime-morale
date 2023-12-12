@@ -429,14 +429,14 @@
       :root {
         --cm-pp-level-1: #37b24d;
         --cm-pp-level-2: #95af14;
-        --cm-pp-level-3: #f5b913;
-        --cm-pp-level-4: #f76707;
+        --cm-pp-level-3: #f4cc00;
+        --cm-pp-level-4: #fa9201;
         --cm-pp-level-5: #e01111;
         --cm-pp-level-6: #a016eb;
         --cm-pp-filter-level-1: brightness(0) saturate(100%) invert(61%) sepia(11%) saturate(2432%) hue-rotate(79deg) brightness(91%) contrast(96%);
         --cm-pp-filter-level-2: brightness(0) saturate(100%) invert(62%) sepia(80%) saturate(2102%) hue-rotate(32deg) brightness(99%) contrast(84%);
-        --cm-pp-filter-level-3: brightness(0) saturate(100%) invert(71%) sepia(67%) saturate(588%) hue-rotate(354deg) brightness(98%) contrast(97%);
-        --cm-pp-filter-level-4: brightness(0) saturate(100%) invert(53%) sepia(67%) saturate(3848%) hue-rotate(355deg) brightness(96%) contrast(102%);
+        --cm-pp-filter-level-3: brightness(0) saturate(100%) invert(71%) sepia(53%) saturate(1820%) hue-rotate(9deg) brightness(107%) contrast(102%);
+        --cm-pp-filter-level-4: brightness(0) saturate(100%) invert(61%) sepia(62%) saturate(1582%) hue-rotate(356deg) brightness(94%) contrast(108%);
         --cm-pp-filter-level-5: brightness(0) saturate(100%) invert(12%) sepia(72%) saturate(5597%) hue-rotate(354deg) brightness(105%) contrast(101%);
         --cm-pp-filter-level-6: brightness(0) saturate(100%) invert(26%) sepia(84%) saturate(4389%) hue-rotate(271deg) brightness(86%) contrast(119%);
       }
@@ -534,6 +534,9 @@
       }
       .cm-pp-level-4 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-4);
+      }
+      .cm-pp-level-5 [class*=commitButton___] {
+        border: 2px solid var(--cm-pp-level-5);
       }
       .cm-pp-best-build:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
         content: '\u2713 ';
