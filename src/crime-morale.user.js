@@ -257,8 +257,13 @@
     Jogger: { level: 4, status: [PP_WALKING], build: [PP_ATHLETIC, PP_MUSCULAR], bestBuild: [PP_MUSCULAR] },
     Mobster: { level: 4, status: [PP_WALKING], build: [PP_SKINNY] },
 
-    Cyclist: { level: 5, status: [PP_CYCLING], build: PP_ANY_BUILD, bestBuild: ['1.52 m', `5'0"`] },
-    'Police Officer': { level: 6, status: [PP_RUNNING], build: PP_ANY_BUILD, bestBuild: [PP_SKINNY, '1.52 m', `5'0"`] },
+    Cyclist: { level: 5, status: [PP_CYCLING], build: ['1.52 m', `5'0"`, '1.62 m', `5'4"`] },
+    'Police Officer': {
+      level: 6,
+      status: [PP_RUNNING],
+      build: PP_ANY_BUILD,
+      bestBuild: [PP_SKINNY, '1.52 m', `5'0"`, '1.62 m', `5'4"`],
+    },
   };
   let pickpocketingOb = null;
   let pickpocketingExitOb = null;
