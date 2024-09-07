@@ -79,7 +79,10 @@
     });
   }
 
-  async function checkCardSkimming(data) {
+  async function checkCardSkimming(params, data) {
+    if (params.get('typeID') !== '6') {
+      return;
+    }
     const now = Math.floor(Date.now() / 1000);
     const subCrimes = data.DB?.crimesByType?.subCrimes;
     if (!subCrimes?.length) {
@@ -376,7 +379,7 @@
 
   async function onCrimeData(params, data) {
     await checkDemoralization(data);
-    await checkCardSkimming(data);
+    await checkCardSkimming(params, data);
     await checkBurglary(params, data);
     await checkPickpocketing(params);
   }
