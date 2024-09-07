@@ -407,7 +407,7 @@
       if (!$) {
         return; // JQuery is not loaded in TornPDA yet
       }
-      const $container = $('.crimes-app div[class*=titleContainer___]');
+      const $container = $('.crimes-app-header');
       if ($container.length === 0) {
         return;
       }
