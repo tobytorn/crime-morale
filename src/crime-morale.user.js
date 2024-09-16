@@ -427,36 +427,29 @@
   class ScammingObserver {
     constructor() {
       this.crimeOptions = null;
-      this.observer = null;
-    }
-
-    start() {
-      if (this.observer) {
-        return;
-      }
-      if (!this.crimeOptions) {
-        this.crimeOptions = document.body.getElementsByClassName('crime-option');
-      }
       this.observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          for (const added of mutation.addedNodes) {
-            if (added instanceof HTMLElement) {
-              for (const element of this.crimeOptions) {
-                if (!element.classList.contains('cm-sc-seen')) {
-                  this._refresh(element);
-                }
-              }
-              return;
-            }
+        if (!mutations.some((mutation) => mutation.addedNodes.values().some((added) => added instanceof HTMLElement))) {
+          return;
+        }
+        for (const element of this.crimeOptions) {
+          if (!element.classList.contains('cm-sc-seen')) {
+            this._refresh(element);
           }
         }
       });
+    }
+
+    start() {
+      if (this.crimeOptions) {
+        return;
+      }
+      this.crimeOptions = document.body.getElementsByClassName('crime-option');
       this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
     }
 
     stop() {
+      this.crimeOptions = null;
       this.observer.disconnect();
-      this.observer = null;
     }
 
     onNewData() {
@@ -476,11 +469,28 @@
         return;
       }
       const now = Math.floor(Date.now() / 1000);
+      // lifetime
       const lifetime = Math.floor((target.expire - now) / 3600);
       $crimeOption.find('.cm-sc-lifetime').remove();
-      if (lifetime > 0 && lifetime <= 48) {
+      if (lifetime > 0) {
         const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
         $email.before(`<span class="cm-sc-lifetime ${color}">${lifetime}h</div>`);
+      }
+      // scale
+      const $cells = $crimeOption.find('.cell___AfwZm');
+      if ($cells.length >= 50) {
+        $cells.find('.cm-sc-scale').remove();
+        // Ignore cells after the first 50, which are faded out soon
+        for (let i = 0; i < 50; i++) {
+          const dist = i - target.pip;
+          const label = dist % 5 !== 0 || dist === 0 || dist < -5 ? '' : dist % 10 === 0 ? (dist / 10).toString() : "'";
+          let $scale = $cells.eq(i).children('.cm-sc-scale');
+          if ($scale.length === 0) {
+            $scale = $('<div class="cm-sc-scale"></div>');
+            $cells.eq(i).append($scale);
+          }
+          $scale.text(label);
+        }
       }
     }
   }
@@ -668,6 +678,18 @@
 
       .cm-sc-lifetime {
         transform: translateY(1px);
+      }
+      .cm-sc-scale {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: calc(100% + 10px);
+        line-height: 1;
+        font-size: 8px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
       }
     `);
   }
