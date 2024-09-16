@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   env: {
     browser: true,
-    es6: true,
+    es2020: true,
     greasemonkey: true,
     node: true,
     jquery: true,

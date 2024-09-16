@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.8
+// @version     1.3.9-dev
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -377,11 +377,130 @@
     pickpocketingExitOb = null;
   }
 
+  class ScammingStore {
+    constructor() {
+      this.data = getValue('scamming', { targets: {} });
+    }
+
+    save() {
+      setValue('scamming', this.data);
+    }
+
+    updateTargets(targets) {
+      if (!targets) {
+        return;
+      }
+      for (const target of targets) {
+        const stored = this.data.targets[target.subID];
+        if (stored && !target.new) {
+          if (stored.multiplierUsed !== target.multiplierUsed || stored.pip !== target.pip) {
+            stored.actions++;
+            stored.multiplierUsed = target.multiplierUsed;
+            stored.pip = target.pip;
+            stored.expire = target.expire;
+          }
+        } else {
+          const multiplierUsed = target.multiplierUsed ?? 0;
+          const pip = target.pip ?? 0;
+          const actions = multiplierUsed === 0 && pip === 0 ? 0 : 1;
+          this.data.targets[target.subID] = {
+            email: target.email,
+            actions,
+            multiplierUsed,
+            pip,
+            expire: target.expire,
+          };
+        }
+      }
+      const now = Math.floor(Date.now() / 1000);
+      for (const [id, target] of Object.entries(this.data.targets)) {
+        if (target.expire < now) {
+          delete this.data.targets[id];
+        }
+      }
+      this.save();
+    }
+  }
+
+  const scammingStore = new ScammingStore();
+
+  class ScammingObserver {
+    constructor() {
+      this.crimeOptions = null;
+      this.observer = null;
+    }
+
+    start() {
+      if (this.observer) {
+        return;
+      }
+      if (!this.crimeOptions) {
+        this.crimeOptions = document.body.getElementsByClassName('crime-option');
+      }
+      this.observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          for (const added of mutation.addedNodes) {
+            if (added instanceof HTMLElement) {
+              for (const element of this.crimeOptions) {
+                if (!element.classList.contains('cm-sc-seen')) {
+                  this._refresh(element);
+                }
+              }
+              return;
+            }
+          }
+        }
+      });
+      this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
+    }
+
+    stop() {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+
+    onNewData() {
+      this.start();
+      for (const element of this.crimeOptions) {
+        this._refresh(element);
+      }
+    }
+
+    _refresh(element) {
+      element.classList.add('cm-sc-seen');
+      const $crimeOption = $(element);
+      const $email = $crimeOption.find('span.email___gVRXx');
+      const email = $email.text();
+      const target = Object.values(scammingStore.data.targets).find((x) => x.email === email);
+      if (!target) {
+        return;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const lifetime = Math.floor((target.expire - now) / 3600);
+      $crimeOption.find('.cm-sc-lifetime').remove();
+      if (lifetime > 0 && lifetime <= 48) {
+        const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
+        $email.before(`<span class="cm-sc-lifetime ${color}">${lifetime}h</div>`);
+      }
+    }
+  }
+  const scammingObserver = new ScammingObserver();
+
+  async function checkScamming(params, data) {
+    if (params.get('typeID') !== '12') {
+      scammingObserver.stop();
+      return;
+    }
+    scammingStore.updateTargets(data.DB?.crimesByType?.targets);
+    scammingObserver.onNewData();
+  }
+
   async function onCrimeData(params, data) {
     await checkDemoralization(data);
     await checkCardSkimming(params, data);
     await checkBurglary(params, data);
     await checkPickpocketing(params);
+    await checkScamming(params, data);
   }
 
   function interceptFetch() {
@@ -545,6 +664,10 @@
         content: '\u2713 ';
         font-weight: bold;
         color: var(--cm-pp-level-2);
+      }
+
+      .cm-sc-lifetime {
+        transform: translateY(1px);
       }
     `);
   }
