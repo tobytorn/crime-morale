@@ -492,6 +492,12 @@
           $scale.text(label);
         }
       }
+      // multiplier
+      const $accButton = $crimeOption.find('.response-type-button').eq(3);
+      $accButton.find('.cm-sc-multiplier').remove();
+      if (target.multiplierUsed > 0) {
+        $accButton.append(`<div class="cm-sc-multiplier">${target.multiplierUsed}</div>`);
+      }
     }
   }
   const scammingObserver = new ScammingObserver();
@@ -690,6 +696,14 @@
         display: flex;
         align-items: flex-end;
         justify-content: center;
+      }
+      .cm-sc-multiplier {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        text-align: right;
+        font-size: 10px;
+        line-height: 1;
       }
     `);
   }
