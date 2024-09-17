@@ -377,9 +377,233 @@
     pickpocketingExitOb = null;
   }
 
+  // Maximize extra exp (total exp - round * EXPECTED_VALUE_PER_ACTION)
+  class ScammingSolver {
+    get EXPECTED_VALUE_PER_ACTION() {
+      return 1.02;
+    }
+    get CONCERN_SUCCESS_RATE() {
+      return 0.6;
+    }
+    get CELL_VALUE() {
+      return {
+        low: 1.5,
+        medium: 2.5,
+        high: 3.5,
+        fail: -20, // The penalty should be -10. I add a bit to it for demoralization and chain bonus lost.
+      };
+    }
+    get SAFE_CELL() {
+      return new Set(['neutral', 'low', 'medium', 'high', 'temptation']);
+    }
+    get DISPLACEMENT() {
+      // prettier-ignore
+      return {
+        1: {
+          strong: [[10, 19], [15, 29], [18, 35], [21, 39], [22, 42], [23, 44]],
+          soft: [[3, 7], [5, 11], [6, 13], [6, 14], [7, 15], [7, 16]],
+          back: [[-4, -2], [-6, -3], [-7, -4], [-8, -4], [-9, -4], [-9, -5]],
+        },
+        20: {
+          strong: [[8, 15], [12, 23], [15, 28], [16, 31], [18, 33], [18, 35]],
+          soft: [[3, 7], [5, 11], [6, 13], [6, 14], [7, 15], [7, 16]],
+          back: [[-4, -2], [-6, -3], [-7, -4], [-8, -4], [-9, -4], [-9, -5]],
+        },
+        40: {
+          strong: [[7, 13], [11, 20], [13, 24], [14, 27], [15, 29], [16, 30]],
+          soft: [[3, 6], [5, 9], [6, 11], [6, 12], [7, 13], [7, 14]],
+          back: [[-4, -2], [-6, -3], [-7, -4], [-8, -4], [-9, -4], [-9, -5]],
+        },
+        // TODO 60
+      };
+    }
+
+    constructor(bar, targetLevel, round, suspicion) {
+      this.bar = bar;
+      this.targetLevel = targetLevel;
+      this.initialRound = round;
+      this.initialSuspicion = suspicion;
+
+      this.dp = new Map(); // (resolvingBitmap | round) => {value: number, action: string, multi: number}[50]
+
+      this.drift = new Array(50);
+      for (let pip = 0; pip < 50; pip++) {
+        let newPip = pip;
+        switch (this.bar[pip]) {
+          case 'temptation':
+            while (newPip + 1 < 50 && (!this.SAFE_CELL.has(this.bar[newPip]) || this.bar[newPip] === 'temptation')) {
+              newPip++;
+            }
+            break;
+          case 'sensitivity':
+            while (newPip > 0 && this.bar[newPip] !== 'neutral') {
+              newPip--;
+            }
+            break;
+        }
+        this.drift[pip] = newPip;
+      }
+
+      this.resolving = new Array(50);
+      for (let pip = 0; pip < 50; pip++) {
+        if (this.resolving[pip]) {
+          continue;
+        }
+        if (this.bar[pip] !== 'hesitation' && this.bar[pip] !== 'concern') {
+          this.resolving[pip] = 0n;
+          continue;
+        }
+        let mask = 0n;
+        for (let endPip = pip; endPip < 50 && this.bar[endPip] === this.bar[pip]; endPip++) {
+          mask += 1n << BigInt(endPip);
+        }
+        for (let endPip = pip; endPip < 50 && this.bar[endPip] === this.bar[pip]; endPip++) {
+          this.resolving[endPip] = mask;
+        }
+      }
+    }
+
+    solve(round, pip, resolvingBitmap, multiplierUsed) {
+      const result = this.visit(round - multiplierUsed, resolvingBitmap, multiplierUsed);
+      return result[pip];
+    }
+
+    /**
+     * @param {number} round
+     * @param {bigint} resolvingBitmap
+     * @returns
+     */
+    visit(round, resolvingBitmap, minMulti) {
+      const dpKey = BigInt(round) | (resolvingBitmap << 6n);
+      const visited = this.dp.get(dpKey);
+      if (visited) {
+        return visited;
+      }
+      const result = new Array(50);
+      this.dp.set(dpKey, result);
+      if (this._getSuspicion(round) >= 50) {
+        for (let pip = 0; pip < 50; pip++) {
+          const value = (this.CELL_VALUE[this.bar[pip]] ?? 0) - this.EXPECTED_VALUE_PER_ACTION;
+          result[pip] = {
+            value: Math.max(0, value),
+            action: value > 0 ? 'capitalize' : 'abandon',
+            multi: 0,
+          };
+        }
+        return result;
+      }
+      for (let pip = 0; pip < 50; pip++) {
+        if (this.bar[pip] === 'fail') {
+          result[pip] = {
+            value: this.CELL_VALUE.fail,
+            action: 'fail',
+            multi: 0,
+          };
+          continue;
+        }
+        if (!this._isResolved(pip, resolvingBitmap)) {
+          if (this.bar[pip] === 'hesitation') {
+            const resolvedResult = this.visit(round, resolvingBitmap | this.resolving[pip], 0);
+            result[pip] = resolvedResult[pip];
+            continue;
+          }
+          if (this.bar[pip] === 'concern') {
+            const resolvedResult = this.visit(round + 1, resolvingBitmap | this.resolving[pip], 0);
+            const unresolvedResult = this.visit(round + 1, resolvingBitmap, 0);
+            const value =
+              (resolvedResult[pip].value + 1) * this.CONCERN_SUCCESS_RATE +
+              unresolvedResult[pip].value * (1 - this.CONCERN_SUCCESS_RATE) -
+              this.EXPECTED_VALUE_PER_ACTION;
+            result[pip] = {
+              value: Math.max(0, value),
+              action: value > 0 ? 'resolve' : 'abandon',
+              multi: 0,
+            };
+            continue;
+          }
+        }
+        const best = {
+          value: 0,
+          action: 'abandon',
+          multi: 0,
+        };
+        const capValue = this.CELL_VALUE[this.bar[pip]] ?? 0;
+        if (capValue > 0) {
+          best.value = capValue - this.EXPECTED_VALUE_PER_ACTION;
+          best.action = 'capitalize';
+        }
+        for (let multi = minMulti; multi <= 5; multi++) {
+          const suspicionAfterMulti = this._getSuspicion(round + multi);
+          const nextRoundResult = this.visit(round + multi + 1, resolvingBitmap, 0);
+          for (const action of ['strong', 'soft', 'back']) {
+            const displacementArray = this.DISPLACEMENT[this.targetLevel.toString()]?.[action]?.[multi];
+            if (!displacementArray) {
+              continue;
+            }
+            const [minDisplacement, maxDisplacement] = displacementArray;
+            let totalValue = 0;
+            for (let disp = minDisplacement; disp <= maxDisplacement; disp++) {
+              const landingPip = Math.min(pip + disp, 49);
+              const newPip = this.drift[landingPip];
+              if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
+                totalValue += this.CELL_VALUE.fail;
+              } else {
+                if (this.SAFE_CELL.has(this.bar[landingPip]) || this._isResolved(pip, resolvingBitmap)) {
+                  totalValue += 1;
+                }
+                totalValue += nextRoundResult[newPip].value;
+              }
+            }
+            const avgValue =
+              totalValue / (maxDisplacement - minDisplacement + 1) +
+              multi -
+              this.EXPECTED_VALUE_PER_ACTION * (multi + 1);
+            if (avgValue > best.value) {
+              best.value = avgValue;
+              best.action = action;
+              best.multi = multi;
+            }
+          }
+        }
+        result[pip] = best;
+      }
+      return result;
+    }
+
+    _getSuspicion(round) {
+      const predefined = [0, 0, 0, 0, 2, 5, 8, 11, 16, 23, 34, 50][round] ?? 50;
+      const current = Math.floor(this.initialSuspicion * 1.5 ** (round - this.initialRound));
+      return Math.max(predefined, current);
+    }
+
+    _isResolved(pip, resolvingBitmap) {
+      return ((1n << BigInt(pip)) & resolvingBitmap) !== 0n;
+    }
+  }
+
   class ScammingStore {
+    get TARGET_LEVEL() {
+      return {
+        'Delivery scam': 1,
+        'Family scam': 1,
+        'Prize Scam': 1,
+        'Charity scam': 20,
+        'Tech support scam': 20,
+        'Vacation scam': 40,
+        'Tax scam': 40,
+        'Advance-fee scam': 60,
+        'Job scam': 60,
+        'Romance scam': 80,
+        'Investment scam': 80,
+      };
+    }
     constructor() {
       this.data = getValue('scamming', { targets: {} });
+      this.solutions = {};
+      this.lastSolutions = {};
+      for (const target of Object.values(this.data.targets)) {
+        this._solve(target);
+      }
     }
 
     save() {
@@ -392,33 +616,80 @@
       }
       for (const target of targets) {
         const stored = this.data.targets[target.subID];
-        if (stored && !target.new) {
+        if (stored && !target.new && target.bar) {
+          let updated = false;
           if (stored.multiplierUsed !== target.multiplierUsed || stored.pip !== target.pip) {
-            stored.actions++;
             stored.multiplierUsed = target.multiplierUsed;
             stored.pip = target.pip;
             stored.expire = target.expire;
+            updated = true;
+          }
+          if (stored.bar) {
+            for (let pip = 0; pip < 50; pip++) {
+              if (target.bar[pip] === stored.bar[pip]) {
+                continue;
+              }
+              if (target.bar[pip] === 'fail' && stored.suspicion <= pip) {
+                stored.suspicion = pip + 1;
+                updated = true;
+              }
+              if (target.bar[pip] === 'neutral' && (BigInt(stored.resolvingBitmap) & (1n << BigInt(pip))) === 0n) {
+                stored.resolvingBitmap = (BigInt(stored.resolvingBitmap) | (1n << BigInt(pip))).toString();
+                updated = true;
+              }
+            }
+          }
+          if (updated) {
+            stored.round++;
+          }
+          if (!stored.bar) {
+            stored.bar = target.bar;
+            updated = true;
+          }
+          if (updated) {
+            this._solve(stored);
           }
         } else {
           const multiplierUsed = target.multiplierUsed ?? 0;
           const pip = target.pip ?? 0;
-          const actions = multiplierUsed === 0 && pip === 0 ? 0 : 1;
-          this.data.targets[target.subID] = {
+          const round = multiplierUsed === 0 && pip === 0 ? 0 : Math.max(1, multiplierUsed);
+          const stored = {
+            id: target.subID,
             email: target.email,
-            actions,
+            level: this.TARGET_LEVEL[target.scamMethod] ?? 999,
+            round,
             multiplierUsed,
             pip,
             expire: target.expire,
+            bar: target.bar ?? null,
+            suspicion: 0,
+            resolvingBitmap: '0',
           };
+          this.data.targets[target.subID] = stored;
+          this._solve(stored);
         }
       }
       const now = Math.floor(Date.now() / 1000);
-      for (const [id, target] of Object.entries(this.data.targets)) {
+      for (const target of Object.values(this.data.targets)) {
         if (target.expire < now) {
-          delete this.data.targets[id];
+          delete this.data.targets[target.id];
         }
       }
       this.save();
+    }
+
+    _solve(target) {
+      if (!target.bar) {
+        return;
+      }
+      this.lastSolutions[target.id] = this.solutions[target.id];
+      const solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
+      this.solutions[target.id] = solver.solve(
+        target.round,
+        target.pip,
+        BigInt(target.resolvingBitmap),
+        target.multiplierUsed,
+      );
     }
   }
 
@@ -459,6 +730,30 @@
       }
     }
 
+    _buildHintHtml(target, solution, lastSolution) {
+      const actionText =
+        {
+          strong: 'Strong Fwd',
+          soft: 'Soft Fwd',
+          back: 'Back',
+          capitalize: '$$$',
+          abandon: 'Abandon',
+          resolve: 'Resolve',
+        }[solution.action] ?? 'N/A';
+      const score = Math.floor(solution.value * 100);
+      const scoreColor = score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green';
+      const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
+      const scoreDiffColor = scoreDiff > 0 ? 't-green' : 't-red';
+      const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
+      const rspText = solution.multi > target.multiplierUsed ? 'Accelerate' : actionText;
+      const fullRspText = solution.multi > 0 ? `(Acc ${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
+      return `<span class="cm-sc-hint cm-sc-hint-content">
+        <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
+        <span>Rsp: ${rspText} ${fullRspText}</span>
+        <span>Lv${target.level}</span>
+      </span>`;
+    }
+
     _refresh(element) {
       element.classList.add('cm-sc-seen');
       const $crimeOption = $(element);
@@ -468,8 +763,20 @@
       if (!target) {
         return;
       }
-      const now = Math.floor(Date.now() / 1000);
+      // hint button
+      $crimeOption.find('.cm-sc-hint').remove();
+      if (target.bar) {
+        const solution = scammingStore.solutions[target.id];
+        const lastSolution = scammingStore.lastSolutions[target.id];
+        $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
+        const $hintButton = $(`<span class="cm-sc-hint cm-sc-hint-button t-blue">Hint</div>`);
+        $email.parent().append($hintButton);
+        $hintButton.on('click', () => {
+          $hintButton.parent().toggleClass('cm-sc-hint-shown');
+        });
+      }
       // lifetime
+      const now = Math.floor(Date.now() / 1000);
       const lifetime = Math.floor((target.expire - now) / 3600);
       $crimeOption.find('.cm-sc-lifetime').remove();
       if (lifetime > 0) {
@@ -682,8 +989,25 @@
         color: var(--cm-pp-level-2);
       }
 
-      .cm-sc-lifetime {
+      .cm-sc-lifetime, .cm-sc-hint-button {
         transform: translateY(1px);
+      }
+      .cm-sc-hint-button {
+        cursor: pointer;
+      }
+      .cm-sc-hint-shown > * {
+        display: none;
+      }
+      .cm-sc-hint-shown > .cm-sc-lifetime {
+        display: block;
+      }
+      .cm-sc-hint-content {
+        display: none;
+        flex-grow: 1;
+      }
+      .cm-sc-hint-shown > .cm-sc-hint-content {
+        display: flex;
+        justify-content: space-between;
       }
       .cm-sc-scale {
         position: absolute;
