@@ -4,7 +4,7 @@
 // @description tobytorn 自用 Crime 2.0 助手
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.3.9-dev
+// @version     1.3.9-alpha.1
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
