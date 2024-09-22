@@ -380,7 +380,13 @@
   // Maximize extra exp (total exp - round * EXPECTED_VALUE_PER_ACTION)
   class ScammingSolver {
     get EXPECTED_VALUE_PER_ACTION() {
-      return 1.02;
+      return {
+        1: 1.02,
+        20: 1.02,
+        40: 1.02,
+        60: (1.02 * 2) / 2.5,
+        80: (1.02 * 2) / 3,
+      };
     }
     get CONCERN_SUCCESS_RATE() {
       return 0.6;
@@ -414,6 +420,11 @@
           soft: [[3, 6], [5, 9], [6, 11], [6, 12], [7, 13], [7, 14]],
           back: [[-4, -2], [-6, -3], [-7, -4], [-8, -4], [-9, -4], [-9, -5]],
         },
+        60: {
+          strong: [[6, 11], [9, 17], [11, 20], [12, 23], [13, 24], [14, 25]],
+          soft: [[2, 4], [3, 6], [4, 7], [4, 8], [4, 9], [5, 9]],
+          back: [[-4, -2], [-6, -3], [-7, -4], [-8, -4], [-9, -4], [-9, -5]],
+        }
         // TODO 60
       };
     }
@@ -421,6 +432,7 @@
     constructor(bar, targetLevel, round, suspicion) {
       this.bar = bar;
       this.targetLevel = targetLevel;
+      this.expectedValuePerAction = this.EXPECTED_VALUE_PER_ACTION[targetLevel] ?? 999;
       this.initialRound = round;
       this.initialSuspicion = suspicion;
 
@@ -483,7 +495,15 @@
       this.dp.set(dpKey, result);
       if (this._getSuspicion(round) >= 50) {
         for (let pip = 0; pip < 50; pip++) {
-          const value = (this.CELL_VALUE[this.bar[pip]] ?? 0) - this.EXPECTED_VALUE_PER_ACTION;
+          if (this.bar[pip] === 'fail') {
+            result[pip] = {
+              value: this.CELL_VALUE.fail,
+              action: 'fail',
+              multi: 0,
+            };
+            continue;
+          }
+          const value = (this.CELL_VALUE[this.bar[pip]] ?? 0) - this.expectedValuePerAction;
           result[pip] = {
             value: Math.max(0, value),
             action: value > 0 ? 'capitalize' : 'abandon',
@@ -513,7 +533,7 @@
             const value =
               (resolvedResult[pip].value + 1) * this.CONCERN_SUCCESS_RATE +
               unresolvedResult[pip].value * (1 - this.CONCERN_SUCCESS_RATE) -
-              this.EXPECTED_VALUE_PER_ACTION;
+              this.expectedValuePerAction;
             result[pip] = {
               value: Math.max(0, value),
               action: value > 0 ? 'resolve' : 'abandon',
@@ -529,7 +549,7 @@
         };
         const capValue = this.CELL_VALUE[this.bar[pip]] ?? 0;
         if (capValue > 0) {
-          best.value = capValue - this.EXPECTED_VALUE_PER_ACTION;
+          best.value = capValue - this.expectedValuePerAction;
           best.action = 'capitalize';
         }
         for (let multi = minMulti; multi <= 5; multi++) {
@@ -555,9 +575,7 @@
               }
             }
             const avgValue =
-              totalValue / (maxDisplacement - minDisplacement + 1) +
-              multi -
-              this.EXPECTED_VALUE_PER_ACTION * (multi + 1);
+              totalValue / (maxDisplacement - minDisplacement + 1) + multi - this.expectedValuePerAction * (multi + 1);
             if (avgValue > best.value) {
               best.value = avgValue;
               best.action = action;
@@ -584,26 +602,23 @@
   class ScammingStore {
     get TARGET_LEVEL() {
       return {
-        'Delivery scam': 1,
-        'Family scam': 1,
-        'Prize Scam': 1,
-        'Charity scam': 20,
-        'Tech support scam': 20,
-        'Vacation scam': 40,
-        'Tax scam': 40,
-        'Advance-fee scam': 60,
-        'Job scam': 60,
-        'Romance scam': 80,
-        'Investment scam': 80,
+        'delivery scam': 1,
+        'family scam': 1,
+        'prize scam': 1,
+        'charity scam': 20,
+        'tech support scam': 20,
+        'vacation scam': 40,
+        'tax scam': 40,
+        'advance-fee scam': 60,
+        'job scam': 60,
+        'romance scam': 80,
+        'investment scam': 80,
       };
     }
     constructor() {
       this.data = getValue('scamming', { targets: {} });
       this.solutions = {};
       this.lastSolutions = {};
-      for (const target of Object.values(this.data.targets)) {
-        this._solve(target);
-      }
     }
 
     save() {
@@ -646,7 +661,7 @@
             stored.bar = target.bar;
             updated = true;
           }
-          if (updated) {
+          if (updated || !(stored.id in this.solutions)) {
             this._solve(stored);
           }
         } else {
@@ -656,7 +671,7 @@
           const stored = {
             id: target.subID,
             email: target.email,
-            level: this.TARGET_LEVEL[target.scamMethod] ?? 999,
+            level: this.TARGET_LEVEL[target.scamMethod.toLowerCase()] ?? 999,
             round,
             multiplierUsed,
             pip,
@@ -682,6 +697,7 @@
       if (!target.bar) {
         return;
       }
+      console.log('XXX solving', target.id);
       this.lastSolutions[target.id] = this.solutions[target.id];
       const solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
       this.solutions[target.id] = solver.solve(
@@ -733,7 +749,7 @@
     _buildHintHtml(target, solution, lastSolution) {
       const actionText =
         {
-          strong: 'Strong Fwd',
+          strong: 'Fast Fwd',
           soft: 'Soft Fwd',
           back: 'Back',
           capitalize: '$$$',
@@ -749,8 +765,8 @@
       const fullRspText = solution.multi > 0 ? `(Acc ${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
       return `<span class="cm-sc-hint cm-sc-hint-content">
         <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
-        <span>Rsp: ${rspText} ${fullRspText}</span>
-        <span>Lv${target.level}</span>
+        <span>${rspText} <span class="t-gray-c">${fullRspText}</span></span>
+        <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
       </span>`;
     }
 
@@ -771,15 +787,18 @@
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         const $hintButton = $(`<span class="cm-sc-hint cm-sc-hint-button t-blue">Hint</div>`);
         $email.parent().append($hintButton);
-        $hintButton.on('click', () => {
-          $hintButton.parent().toggleClass('cm-sc-hint-shown');
-        });
+        $email
+          .parent()
+          .find('.cm-sc-hint-button')
+          .on('click', () => {
+            $hintButton.parent().toggleClass('cm-sc-hint-shown');
+          });
       }
       // lifetime
       const now = Math.floor(Date.now() / 1000);
       const lifetime = Math.floor((target.expire - now) / 3600);
       $crimeOption.find('.cm-sc-lifetime').remove();
-      if (lifetime > 0) {
+      if (lifetime >= 0) {
         const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
         $email.before(`<span class="cm-sc-lifetime ${color}">${lifetime}h</div>`);
       }
@@ -989,7 +1008,7 @@
         color: var(--cm-pp-level-2);
       }
 
-      .cm-sc-lifetime, .cm-sc-hint-button {
+      .cm-sc-lifetime, .cm-sc-hint-button, .cm-sc-hint-content {
         transform: translateY(1px);
       }
       .cm-sc-hint-button {
