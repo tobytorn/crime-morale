@@ -617,11 +617,10 @@
     }
     constructor() {
       this.data = getValue('scamming', { targets: {} });
-      this.solutions = {};
       this.lastSolutions = {};
     }
 
-    save() {
+    _save() {
       setValue('scamming', this.data);
     }
 
@@ -655,13 +654,14 @@
             }
           }
           if (updated) {
+            // Round is not accurate for concern and hesitation.
             stored.round++;
           }
           if (!stored.bar) {
             stored.bar = target.bar;
             updated = true;
           }
-          if (updated || !(stored.id in this.solutions)) {
+          if (updated || !stored.solution) {
             this._solve(stored);
           }
         } else {
@@ -679,6 +679,7 @@
             bar: target.bar ?? null,
             suspicion: 0,
             resolvingBitmap: '0',
+            solution: null,
           };
           this.data.targets[target.subID] = stored;
           this._solve(stored);
@@ -690,22 +691,16 @@
           delete this.data.targets[target.id];
         }
       }
-      this.save();
+      this._save();
     }
 
     _solve(target) {
       if (!target.bar) {
         return;
       }
-      console.log('XXX solving', target.id);
-      this.lastSolutions[target.id] = this.solutions[target.id];
+      this.lastSolutions[target.id] = target.solution;
       const solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
-      this.solutions[target.id] = solver.solve(
-        target.round,
-        target.pip,
-        BigInt(target.resolvingBitmap),
-        target.multiplierUsed,
-      );
+      target.solution = solver.solve(target.round, target.pip, BigInt(target.resolvingBitmap), target.multiplierUsed);
     }
   }
 
@@ -782,7 +777,7 @@
       // hint button
       $crimeOption.find('.cm-sc-hint').remove();
       if (target.bar) {
-        const solution = scammingStore.solutions[target.id];
+        const solution = target.solution;
         const lastSolution = scammingStore.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         const $hintButton = $(`<span class="cm-sc-hint cm-sc-hint-button t-blue">Hint</div>`);
