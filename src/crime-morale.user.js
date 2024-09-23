@@ -483,7 +483,7 @@
     /**
      * @param {number} round
      * @param {bigint} resolvingBitmap
-     * @returns
+     * @param {number} minMulti
      */
     visit(round, resolvingBitmap, minMulti) {
       const dpKey = BigInt(round) | (resolvingBitmap << 6n);
@@ -493,7 +493,7 @@
       }
       const result = new Array(50);
       this.dp.set(dpKey, result);
-      if (this._getSuspicion(round) >= 50) {
+      if (this._estimateSuspicion(round) >= 50) {
         for (let pip = 0; pip < 50; pip++) {
           if (this.bar[pip] === 'fail') {
             result[pip] = {
@@ -553,7 +553,7 @@
           best.action = 'capitalize';
         }
         for (let multi = minMulti; multi <= 5; multi++) {
-          const suspicionAfterMulti = this._getSuspicion(round + multi);
+          const suspicionAfterMulti = this._estimateSuspicion(round + multi);
           const nextRoundResult = this.visit(round + multi + 1, resolvingBitmap, 0);
           for (const action of ['strong', 'soft', 'back']) {
             const displacementArray = this.DISPLACEMENT[this.targetLevel.toString()]?.[action]?.[multi];
@@ -588,7 +588,7 @@
       return result;
     }
 
-    _getSuspicion(round) {
+    _estimateSuspicion(round) {
       const predefined = [0, 0, 0, 0, 2, 5, 8, 11, 16, 23, 34, 50][round] ?? 50;
       const current = Math.floor(this.initialSuspicion * 1.5 ** (round - this.initialRound));
       return Math.max(predefined, current);
@@ -617,6 +617,7 @@
     }
     constructor() {
       this.data = getValue('scamming', { targets: {} });
+      this.solvers = {};
       this.lastSolutions = {};
     }
 
@@ -699,7 +700,11 @@
         return;
       }
       this.lastSolutions[target.id] = target.solution;
-      const solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
+      let solver = this.solvers[target.id];
+      if (!solver || target.suspicion > 0) {
+        solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
+        this.solvers[target.id] = solver;
+      }
       target.solution = solver.solve(target.round, target.pip, BigInt(target.resolvingBitmap), target.multiplierUsed);
     }
   }
