@@ -763,7 +763,7 @@
       const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
       const rspText = solution.multi > target.multiplierUsed ? 'Accelerate' : actionText;
       const fullRspText = solution.multi > 0 ? `(Acc ${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
-      return `<span class="cm-sc-hint cm-sc-hint-content">
+      return `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">
         <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
         <span>${rspText} <span class="t-gray-c">${fullRspText}</span></span>
         <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
@@ -779,29 +779,27 @@
       if (!target) {
         return;
       }
-      // hint button
-      $crimeOption.find('.cm-sc-hint').remove();
-      if (target.bar) {
-        const solution = target.solution;
+      // clear old info elements
+      $crimeOption.find('.cm-sc-info').remove();
+      $email.parent().addClass('cm-sc-info-wrapper');
+      $email.parent().children().addClass('cm-sc-orig-info');
+      // hint
+      const solution = target.solution;
+      if (solution) {
         const lastSolution = scammingStore.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
-        const $hintButton = $(`<span class="cm-sc-hint cm-sc-hint-button t-blue">Hint</div>`);
-        $email.parent().append($hintButton);
-        $email
-          .parent()
-          .find('.cm-sc-hint-button')
-          .on('click', () => {
-            $hintButton.parent().toggleClass('cm-sc-hint-shown');
-          });
+        $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
+        $crimeOption.find('.cm-sc-hint-button').on('click', () => {
+          $email.parent().toggleClass('cm-sc-hint-hidden');
+        });
+      } else {
+        $email.parent().addClass('cm-sc-hint-hidden');
       }
       // lifetime
       const now = Math.floor(Date.now() / 1000);
       const lifetime = Math.floor((target.expire - now) / 3600);
-      $crimeOption.find('.cm-sc-lifetime').remove();
-      if (lifetime >= 0) {
-        const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
-        $email.before(`<span class="cm-sc-lifetime ${color}">${lifetime}h</div>`);
-      }
+      const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
+      $email.before(`<span class="cm-sc-info cm-sc-lifetime ${color}">${lifetime}h</div>`);
       // scale
       const $cells = $crimeOption.find('.cell___AfwZm');
       if ($cells.length >= 50) {
@@ -1008,25 +1006,20 @@
         color: var(--cm-pp-level-2);
       }
 
-      .cm-sc-lifetime, .cm-sc-hint-button, .cm-sc-hint-content {
+      .cm-sc-info {
         transform: translateY(1px);
       }
       .cm-sc-hint-button {
         cursor: pointer;
       }
-      .cm-sc-hint-shown > * {
+      .cm-sc-info-wrapper.cm-sc-hint-hidden > .cm-sc-hint,
+      .cm-sc-info-wrapper:not(.cm-sc-hint-hidden) > .cm-sc-orig-info {
         display: none;
-      }
-      .cm-sc-hint-shown > .cm-sc-lifetime {
-        display: block;
       }
       .cm-sc-hint-content {
-        display: none;
-        flex-grow: 1;
-      }
-      .cm-sc-hint-shown > .cm-sc-hint-content {
         display: flex;
         justify-content: space-between;
+        flex-grow: 1;
       }
       .cm-sc-scale {
         position: absolute;
