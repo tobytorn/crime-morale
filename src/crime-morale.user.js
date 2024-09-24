@@ -709,10 +709,9 @@
     }
   }
 
-  const scammingStore = new ScammingStore();
-
   class ScammingObserver {
     constructor() {
+      this.store = new ScammingStore();
       this.crimeOptions = null;
       this.observer = new MutationObserver((mutations) => {
         if (!mutations.some((mutation) => mutation.addedNodes.values().some((added) => added instanceof HTMLElement))) {
@@ -775,19 +774,23 @@
       const $crimeOption = $(element);
       const $email = $crimeOption.find('span.email___gVRXx');
       const email = $email.text();
-      const target = Object.values(scammingStore.data.targets).find((x) => x.email === email);
+      const target = Object.values(this.store.data.targets).find((x) => x.email === email);
       if (!target) {
         return;
       }
       // clear old info elements
+      const hasHint = $crimeOption.find('.cm-sc-hint-content').length > 0;
       $crimeOption.find('.cm-sc-info').remove();
       $email.parent().addClass('cm-sc-info-wrapper');
       $email.parent().children().addClass('cm-sc-orig-info');
       // hint
       const solution = target.solution;
       if (solution) {
+        if (!hasHint) {
+          $email.parent().removeClass('cm-sc-hint-hidden');
+        }
         $crimeOption.attr('data-cm-action', solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
-        const lastSolution = scammingStore.lastSolutions[target.id];
+        const lastSolution = this.store.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
         $crimeOption.find('.cm-sc-hint-button').on('click', () => {
@@ -832,7 +835,7 @@
       scammingObserver.stop();
       return;
     }
-    scammingStore.updateTargets(data.DB?.crimesByType?.targets);
+    scammingObserver.store.updateTargets(data.DB?.crimesByType?.targets);
     scammingObserver.onNewData();
   }
 
