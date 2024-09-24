@@ -786,6 +786,7 @@
       // hint
       const solution = target.solution;
       if (solution) {
+        $crimeOption.attr('data-cm-action', solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
         const lastSolution = scammingStore.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
@@ -1020,6 +1021,30 @@
         display: flex;
         justify-content: space-between;
         flex-grow: 1;
+      }
+      .cm-sc-seen[data-cm-action=strong] .response-type-button:nth-child(1):after,
+      .cm-sc-seen[data-cm-action=soft] .response-type-button:nth-child(2):after,
+      .cm-sc-seen[data-cm-action=back] .response-type-button:nth-child(3):after,
+      .cm-sc-seen[data-cm-action=accelerate] .response-type-button:nth-child(4):after,
+      .cm-sc-seen[data-cm-action=capitalize] .response-type-button:nth-child(5):after {
+        content: '\u2713';
+        color: green;
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 12px;
+        font-weight: bolder;
+        line-height: 1;
+      }
+      .cm-sc-seen[data-cm-action=abandon] .response-type-button:after {
+        content: '\u2715';
+        color: red;
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 12px;
+        font-weight: bolder;
+        line-height: 1;
       }
       .cm-sc-scale {
         position: absolute;
