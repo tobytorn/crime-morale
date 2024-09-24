@@ -30,15 +30,22 @@
 
   function getLocalStorage(key, defaultValue) {
     const value = window.localStorage.getItem(LOCAL_STORAGE_PREFIX + key);
-    return value !== null ? value : defaultValue;
+    try {
+      return JSON.parse(value) ?? defaultValue;
+    } catch (err) {
+      return defaultValue;
+    }
   }
 
   function setLocalStorage(key, value) {
-    window.localStorage.setItem(LOCAL_STORAGE_PREFIX + key, value);
+    window.localStorage.setItem(LOCAL_STORAGE_PREFIX + key, JSON.stringify(value));
   }
 
-  const getValue = window.GM_getValue || getLocalStorage;
-  const setValue = window.GM_setValue || setLocalStorage;
+  const isPda = window.GM_info?.scriptHandler?.toLowerCase().includes('tornpda');
+  const [getValue, setValue] =
+    isPda || typeof window.GM_getValue !== 'function' || typeof window.GM_setValue !== 'function'
+      ? [getLocalStorage, setLocalStorage]
+      : [window.GM_getValue, window.GM_setValue];
 
   function addStyle(css) {
     const style =
@@ -714,7 +721,15 @@
       this.store = new ScammingStore();
       this.crimeOptions = null;
       this.observer = new MutationObserver((mutations) => {
-        if (!mutations.some((mutation) => mutation.addedNodes.values().some((added) => added instanceof HTMLElement))) {
+        const isAdd = mutations.some((mutation) => {
+          for (const added of mutation.addedNodes) {
+            if (added instanceof HTMLElement) {
+              return true;
+            }
+          }
+          return false;
+        });
+        if (!isAdd) {
           return;
         }
         for (const element of this.crimeOptions) {
@@ -760,11 +775,11 @@
       const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
       const scoreDiffColor = scoreDiff > 0 ? 't-green' : 't-red';
       const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
-      const rspText = solution.multi > target.multiplierUsed ? 'Accelerate' : actionText;
-      const fullRspText = solution.multi > 0 ? `(Acc ${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
+      const rspText = solution.multi > target.multiplierUsed ? 'Accel' : actionText;
+      const fullRspText = solution.multi > 0 ? `(${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
       return `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">
         <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
-        <span>${rspText} <span class="t-gray-c">${fullRspText}</span></span>
+        <span class="cm-sc-hint-action">${rspText} <span class="t-gray-c">${fullRspText}</span></span>
         <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
       </span>`;
     }
@@ -1024,6 +1039,14 @@
         display: flex;
         justify-content: space-between;
         flex-grow: 1;
+        gap: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .cm-sc-hint-action {
+        flex-shrink: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .cm-sc-seen[data-cm-action=strong] .response-type-button:nth-child(1):after,
       .cm-sc-seen[data-cm-action=soft] .response-type-button:nth-child(2):after,
@@ -1038,6 +1061,7 @@
         font-size: 12px;
         font-weight: bolder;
         line-height: 1;
+        z-index: 999;
       }
       .cm-sc-seen[data-cm-action=abandon] .response-type-button:after {
         content: '\u2715';
@@ -1048,6 +1072,7 @@
         font-size: 12px;
         font-weight: bolder;
         line-height: 1;
+        z-index: 999;
       }
       .cm-sc-scale {
         position: absolute;
