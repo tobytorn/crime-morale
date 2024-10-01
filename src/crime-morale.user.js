@@ -396,7 +396,7 @@
       };
     }
     get CONCERN_SUCCESS_RATE() {
-      return 0.6;
+      return 0.5;
     }
     get CELL_VALUE() {
       return {
