@@ -579,7 +579,7 @@
               if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
                 totalValue += this.CELL_VALUE.fail;
               } else {
-                if (this.SAFE_CELL.has(this.bar[landingPip]) || this._isResolved(pip, resolvingBitmap)) {
+                if (this.SAFE_CELL.has(this.bar[landingPip]) || this._isResolved(landingPip, resolvingBitmap)) {
                   totalValue += 1;
                 }
                 totalValue += nextRoundResult[newPip].value;
