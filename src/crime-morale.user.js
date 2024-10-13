@@ -384,21 +384,24 @@
     pickpocketingExitOb = null;
   }
 
-  // Maximize extra exp (total exp - round * EXPECTED_VALUE_PER_ACTION)
+  // Maximize extra exp (capitalization exp - total cost)
   class ScammingSolver {
-    get EXPECTED_VALUE_PER_ACTION() {
+    get BASE_ACTION_COST() {
+      return 0.02;
+    }
+    get FAILURE_COST_MAP() {
       return {
-        1: 1.02,
-        20: 1.02,
-        40: 1.02,
-        60: (1.02 * 2) / 2.5,
-        80: (1.02 * 2) / 3,
+        1: 1,
+        20: 1,
+        40: 1,
+        60: 0.5,
+        80: 0.33,
       };
     }
     get CONCERN_SUCCESS_RATE() {
       return 0.5;
     }
-    get CELL_VALUE() {
+    get CELL_VALUE_MAP() {
       return {
         low: 1.5,
         medium: 2.5,
@@ -443,7 +446,7 @@
     constructor(bar, targetLevel, round, suspicion) {
       this.bar = bar;
       this.targetLevel = targetLevel;
-      this.expectedValuePerAction = this.EXPECTED_VALUE_PER_ACTION[targetLevel] ?? 999;
+      this.failureCost = this.FAILURE_COST_MAP[this.targetLevel];
       this.initialRound = round;
       this.initialSuspicion = suspicion;
 
@@ -508,13 +511,13 @@
         for (let pip = 0; pip < 50; pip++) {
           if (this.bar[pip] === 'fail') {
             result[pip] = {
-              value: this.CELL_VALUE.fail,
+              value: this.CELL_VALUE_MAP.fail,
               action: 'fail',
               multi: 0,
             };
             continue;
           }
-          const value = (this.CELL_VALUE[this.bar[pip]] ?? 0) - this.expectedValuePerAction;
+          const value = (this.CELL_VALUE_MAP[this.bar[pip]] ?? 0) - 1;
           result[pip] = {
             value: Math.max(0, value),
             action: value > 0 ? 'capitalize' : 'abandon',
@@ -526,7 +529,7 @@
       for (let pip = 0; pip < 50; pip++) {
         if (this.bar[pip] === 'fail') {
           result[pip] = {
-            value: this.CELL_VALUE.fail,
+            value: this.CELL_VALUE_MAP.fail,
             action: 'fail',
             multi: 0,
           };
@@ -542,9 +545,9 @@
             const resolvedResult = this.visit(round + 1, resolvingBitmap | this.resolving[pip], 0);
             const unresolvedResult = this.visit(round + 1, resolvingBitmap, 0);
             const value =
-              (resolvedResult[pip].value + 1) * this.CONCERN_SUCCESS_RATE +
-              unresolvedResult[pip].value * (1 - this.CONCERN_SUCCESS_RATE) -
-              this.expectedValuePerAction;
+              resolvedResult[pip].value * this.CONCERN_SUCCESS_RATE +
+              (unresolvedResult[pip].value - this.failureCost) * (1 - this.CONCERN_SUCCESS_RATE) -
+              this.BASE_ACTION_COST;
             result[pip] = {
               value: Math.max(0, value),
               action: value > 0 ? 'resolve' : 'abandon',
@@ -558,9 +561,9 @@
           action: 'abandon',
           multi: 0,
         };
-        const capValue = this.CELL_VALUE[this.bar[pip]] ?? 0;
-        if (capValue > 0) {
-          best.value = capValue - this.expectedValuePerAction;
+        const capValue = this.CELL_VALUE_MAP[this.bar[pip]] ?? 0;
+        if (capValue > 1) {
+          best.value = capValue - 1;
           best.action = 'capitalize';
         }
         for (let multi = minMulti; multi <= 5; multi++) {
@@ -577,16 +580,16 @@
               const landingPip = Math.min(pip + disp, 49);
               const newPip = this.drift[landingPip];
               if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
-                totalValue += this.CELL_VALUE.fail;
+                totalValue += this.CELL_VALUE_MAP.fail;
               } else {
-                if (this.SAFE_CELL.has(this.bar[landingPip]) || this._isResolved(landingPip, resolvingBitmap)) {
-                  totalValue += 1;
+                if (!this.SAFE_CELL.has(this.bar[landingPip]) && !this._isResolved(landingPip, resolvingBitmap)) {
+                  totalValue -= this.failureCost;
                 }
+                totalValue -= this.BASE_ACTION_COST;
                 totalValue += nextRoundResult[newPip].value;
               }
             }
-            const avgValue =
-              totalValue / (maxDisplacement - minDisplacement + 1) + multi - this.expectedValuePerAction * (multi + 1);
+            const avgValue = totalValue / (maxDisplacement - minDisplacement + 1) - this.BASE_ACTION_COST * multi;
             if (avgValue > best.value) {
               best.value = avgValue;
               best.action = action;
