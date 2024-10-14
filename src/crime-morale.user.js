@@ -709,6 +709,20 @@
       this._save();
     }
 
+    updateFarms(currentOngoing) {
+      if (typeof currentOngoing !== 'object' || !(currentOngoing.length > 0)) {
+        return;
+      }
+      this.data.farms = this.data.farms ?? {};
+      for (const item of currentOngoing) {
+        if (!item.type) {
+          continue;
+        }
+        this.data.farms[item.type] = { expire: item.timeEnded };
+      }
+      this._save();
+    }
+
     _solve(target) {
       if (!target.bar) {
         return;
@@ -727,6 +741,7 @@
     constructor() {
       this.store = new ScammingStore();
       this.crimeOptions = null;
+      this.farmIcons = null;
       this.observer = new MutationObserver((mutations) => {
         const isAdd = mutations.some((mutation) => {
           for (const added of mutation.addedNodes) {
@@ -741,7 +756,14 @@
         }
         for (const element of this.crimeOptions) {
           if (!element.classList.contains('cm-sc-seen')) {
-            this._refresh(element);
+            element.classList.add('cm-sc-seen');
+            this._refreshTarget(element);
+          }
+        }
+        for (const element of this.farmIcons) {
+          if (!element.classList.contains('cm-sc-seen')) {
+            element.classList.add('cm-sc-seen');
+            this._refreshFarm(element);
           }
         }
       });
@@ -752,6 +774,7 @@
         return;
       }
       this.crimeOptions = document.body.getElementsByClassName('crime-option');
+      this.farmIcons = document.body.getElementsByClassName('scraperPhisher___oy1Wn');
       this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
     }
 
@@ -763,7 +786,10 @@
     onNewData() {
       this.start();
       for (const element of this.crimeOptions) {
-        this._refresh(element);
+        this._refreshTarget(element);
+      }
+      for (const element of this.farmIcons) {
+        this._refreshFarm(element);
       }
     }
 
@@ -791,8 +817,7 @@
       </span>`;
     }
 
-    _refresh(element) {
-      element.classList.add('cm-sc-seen');
+    _refreshTarget(element) {
       const $crimeOption = $(element);
       const $email = $crimeOption.find('span.email___gVRXx');
       const email = $email.text();
@@ -825,7 +850,7 @@
       const now = Math.floor(Date.now() / 1000);
       const lifetime = Math.floor((target.expire - now) / 3600);
       const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
-      $email.before(`<span class="cm-sc-info cm-sc-lifetime ${color}">${lifetime}h</div>`);
+      $email.before(`<span class="cm-sc-info ${color}">${lifetime}h</div>`);
       // scale
       const $cells = $crimeOption.find('.cell___AfwZm');
       if ($cells.length >= 50) {
@@ -849,6 +874,32 @@
         $accButton.append(`<div class="cm-sc-multiplier">${target.multiplierUsed}</div>`);
       }
     }
+
+    _refreshFarm(element) {
+      const farms = this.store.data.farms;
+      if (!farms) {
+        return;
+      }
+      const $element = $(element);
+      const label = $element.attr('aria-label') ?? '';
+      const farm = Object.entries(farms).find(([type]) => label.toLowerCase().includes(type))?.[1];
+      if (!farm) {
+        return;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const lifetime = farm.expire - now;
+      const lifetimeText =
+        lifetime >= 86400
+          ? `${Math.floor(lifetime / 86400)}d`
+          : lifetime >= 3600
+          ? `${Math.floor(lifetime / 3600)}h`
+          : lifetime >= 0
+          ? `${Math.floor(lifetime / 60)}m`
+          : '';
+      const color = lifetime >= 86400 ? 't-gray-c' : lifetime >= 12 * 3600 ? 't-yellow' : 't-red';
+      $element.find('.cm-sc-farm-lifetime').remove();
+      $element.append(`<div class="cm-sc-farm-lifetime ${color}">${lifetimeText}</div>`);
+    }
   }
   const scammingObserver = new ScammingObserver();
 
@@ -858,6 +909,7 @@
       return;
     }
     scammingObserver.store.updateTargets(data.DB?.crimesByType?.targets);
+    scammingObserver.store.updateFarms(data.DB?.additionalInfo?.currentOngoing);
     scammingObserver.onNewData();
   }
 
@@ -1100,6 +1152,10 @@
         text-align: right;
         font-size: 10px;
         line-height: 1;
+      }
+      .cm-sc-farm-lifetime {
+        padding-top: 2px;
+        text-align: center;
       }
     `);
   }
