@@ -634,6 +634,7 @@
     }
     constructor() {
       this.data = getValue('scamming', { targets: {} });
+      this.unsyncedSet = new Set(Object.keys(this.data.targets));
       this.solvers = {};
       this.lastSolutions = {};
     }
@@ -656,6 +657,10 @@
             stored.expire = target.expire;
             updated = true;
           }
+          if (updated && this.unsyncedSet.has(stored.id)) {
+            stored.unsynced = true; // replied on another device
+          }
+          this.unsyncedSet.delete(stored.id);
           if (stored.bar) {
             for (let pip = 0; pip < 50; pip++) {
               if (target.bar[pip] === stored.bar[pip]) {
@@ -698,6 +703,7 @@
             suspicion: 0,
             resolvingBitmap: '0',
             solution: null,
+            unsynced: round > 0,
           };
           this.data.targets[target.subID] = stored;
           this._solve(stored);
@@ -811,11 +817,17 @@
       const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
       const scoreDiffColor = scoreDiff > 0 ? 't-green' : 't-red';
       const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
-      const rspText = solution.multi > target.multiplierUsed ? 'Accel' : actionText;
-      const fullRspText = solution.multi > 0 ? `(${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
+      let rspText = solution.multi > target.multiplierUsed ? 'Accel' : actionText;
+      let rspColor = '';
+      let fullRspText = solution.multi > 0 ? `(${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
+      if (target.unsynced) {
+        rspText = 'Unsynced';
+        rspColor = 't-gray-c';
+        fullRspText = fullRspText !== '' ? fullRspText : `(${actionText})`;
+      }
       return `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">
         <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
-        <span class="cm-sc-hint-action">${rspText} <span class="t-gray-c">${fullRspText}</span></span>
+        <span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>
         <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
       </span>`;
     }
