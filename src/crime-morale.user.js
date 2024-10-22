@@ -603,6 +603,9 @@
     }
 
     _estimateSuspicion(round) {
+      if (round <= this.initialRound) {
+        return this.initialSuspicion;
+      }
       const predefined = [0, 0, 0, 0, 2, 5, 8, 11, 16, 23, 34, 50][round] ?? 50;
       const current = Math.floor(this.initialSuspicion * 1.5 ** (round - this.initialRound));
       return Math.max(predefined, current);
