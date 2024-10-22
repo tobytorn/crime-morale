@@ -904,7 +904,7 @@
       const now = Math.floor(Date.now() / 1000);
       const lifetime = farm.expire - now;
       const lifetimeText =
-        lifetime >= 86400
+        lifetime >= 86400 * 2
           ? `${Math.floor(lifetime / 86400)}d`
           : lifetime >= 3600
           ? `${Math.floor(lifetime / 3600)}h`
