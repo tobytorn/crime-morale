@@ -59,6 +59,20 @@
     style.appendChild(document.createTextNode(css));
   }
 
+  function formatLifetime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const text =
+      hours >= 72
+        ? `${Math.floor(hours / 24)}d`
+        : hours > 0
+        ? `${hours}h`
+        : seconds >= 0
+        ? `${Math.floor(seconds / 60)}m`
+        : '';
+    const color = hours >= 24 ? 't-gray-c' : hours >= 12 ? 't-yellow' : hours >= 0 ? 't-red' : '';
+    return { seconds, hours, text, color };
+  }
+
   async function checkDemoralization(data) {
     const demMod = (data.DB || {}).demMod;
     if (typeof demMod !== 'number') {
@@ -147,20 +161,19 @@
           background: var(--default-bg-panel-color);
         ">${property.confidence}%</div>`);
       }
-      const lifetime = Math.floor((property.expire - now) / 3600);
+      const lifetime = formatLifetime(property.expire - now);
       const $title = $option.find('[class*=crimeOptionSection___]').first();
       $title.find('.cm-lifetime').remove();
-      if (lifetime > 0 && lifetime <= 48) {
-        const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
+      if (lifetime.hours >= 0 && lifetime.hours <= 48) {
         $title.css('position', 'relative');
-        $title.append(`<div class="cm-lifetime ${color}" style="
+        $title.append(`<div class="cm-lifetime ${lifetime.color}" style="
           position: absolute;
           top: 0;
           right: 0;
           padding: 2px;
           background: var(--default-bg-panel-color);
           border: 1px solid darkgray;
-        ">${lifetime}h</div>`);
+        ">${lifetime.text}</div>`);
       }
     });
   }
@@ -863,9 +876,8 @@
       }
       // lifetime
       const now = Math.floor(Date.now() / 1000);
-      const lifetime = Math.floor((target.expire - now) / 3600);
-      const color = lifetime >= 24 ? 't-gray-c' : lifetime >= 12 ? 't-yellow' : 't-red';
-      $email.before(`<span class="cm-sc-info ${color}">${lifetime}h</div>`);
+      const lifetime = formatLifetime(target.expire - now);
+      $email.before(`<span class="cm-sc-info ${lifetime.color}">${lifetime.text}</div>`);
       // scale
       const $cells = $crimeOption.find('.cell___AfwZm');
       if ($cells.length >= 50) {
@@ -902,18 +914,9 @@
         return;
       }
       const now = Math.floor(Date.now() / 1000);
-      const lifetime = farm.expire - now;
-      const lifetimeText =
-        lifetime >= 86400 * 2
-          ? `${Math.floor(lifetime / 86400)}d`
-          : lifetime >= 3600
-          ? `${Math.floor(lifetime / 3600)}h`
-          : lifetime >= 0
-          ? `${Math.floor(lifetime / 60)}m`
-          : '';
-      const color = lifetime >= 86400 ? 't-gray-c' : lifetime >= 12 * 3600 ? 't-yellow' : 't-red';
+      const lifetime = formatLifetime(farm.expire - now);
       $element.find('.cm-sc-farm-lifetime').remove();
-      $element.append(`<div class="cm-sc-farm-lifetime ${color}">${lifetimeText}</div>`);
+      $element.append(`<div class="cm-sc-farm-lifetime ${lifetime.color}">${lifetime.text}</div>`);
     }
   }
   const scammingObserver = new ScammingObserver();
