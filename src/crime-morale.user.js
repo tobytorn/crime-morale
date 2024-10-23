@@ -630,7 +630,7 @@
   }
 
   class ScammingStore {
-    get TARGET_LEVEL() {
+    get TARGET_LEVEL_MAP() {
       return {
         'delivery scam': 1,
         'family scam': 1,
@@ -645,18 +645,43 @@
         'investment scam': 80,
       };
     }
+    get SPAM_ID_MAP() {
+      return {
+        295: 'delivery',
+        293: 'family',
+        291: 'prize',
+        297: 'charity',
+        299: 'tech support',
+        301: 'vacation',
+        303: 'tax',
+        305: 'advance-fee',
+        307: 'job',
+        309: 'romance',
+        311: 'investment',
+      };
+    }
     constructor() {
-      this.data = getValue('scamming', { targets: {} });
+      this.data = getValue('scamming', {});
+      this.data.targets = this.data.targets ?? {};
+      this.data.farms = this.data.farms ?? {};
+      this.data.spams = this.data.spams ?? {};
       this.unsyncedSet = new Set(Object.keys(this.data.targets));
       this.solvers = {};
       this.lastSolutions = {};
+    }
+
+    update(data) {
+      this._updateTargets(data.DB?.crimesByType?.targets);
+      this._updateFarms(data.DB?.additionalInfo?.currentOngoing);
+      this._updateSpams(data.DB?.currentUserStats?.crimesByIDAttempts);
+      this._save();
     }
 
     _save() {
       setValue('scamming', this.data);
     }
 
-    updateTargets(targets) {
+    _updateTargets(targets) {
       if (!targets) {
         return;
       }
@@ -707,7 +732,7 @@
           const stored = {
             id: target.subID,
             email: target.email,
-            level: this.TARGET_LEVEL[target.scamMethod.toLowerCase()] ?? 999,
+            level: this.TARGET_LEVEL_MAP[target.scamMethod.toLowerCase()] ?? 999,
             round,
             multiplierUsed,
             pip,
@@ -728,21 +753,47 @@
           delete this.data.targets[target.id];
         }
       }
-      this._save();
     }
 
-    updateFarms(currentOngoing) {
+    _updateFarms(currentOngoing) {
       if (typeof currentOngoing !== 'object' || !(currentOngoing.length > 0)) {
         return;
       }
-      this.data.farms = this.data.farms ?? {};
       for (const item of currentOngoing) {
         if (!item.type) {
           continue;
         }
         this.data.farms[item.type] = { expire: item.timeEnded };
       }
-      this._save();
+    }
+
+    _updateSpams(crimesByIDAttempts) {
+      if (!crimesByIDAttempts) {
+        return;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      for (const [id, count] of Object.entries(crimesByIDAttempts)) {
+        const type = this.SPAM_ID_MAP[id];
+        if (!type) {
+          continue;
+        }
+        const stored = this.data.spams[id];
+        if (stored) {
+          if (count !== stored.count) {
+            stored.count = count;
+            stored.accurate = now - stored.ts < 3600;
+            stored.since = now;
+          }
+          stored.ts = now;
+        } else {
+          this.data.spams[id] = {
+            count,
+            accurate: false,
+            since: null,
+            ts: now,
+          };
+        }
+      }
     }
 
     _solve(target) {
@@ -788,6 +839,12 @@
             this._refreshFarm(element);
           }
         }
+        for (const element of this.spamOptions) {
+          if (!element.classList.contains('cm-sc-seen')) {
+            element.classList.add('cm-sc-seen');
+            this._refreshSpam(element);
+          }
+        }
       });
     }
 
@@ -797,6 +854,7 @@
       }
       this.crimeOptions = document.body.getElementsByClassName('crime-option');
       this.farmIcons = document.body.getElementsByClassName('scraperPhisher___oy1Wn');
+      this.spamOptions = document.body.getElementsByClassName('optionWithLevelRequirement___cHH35');
       this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
     }
 
@@ -812,6 +870,9 @@
       }
       for (const element of this.farmIcons) {
         this._refreshFarm(element);
+      }
+      for (const element of this.spamOptions) {
+        this._refreshSpam(element);
       }
     }
 
@@ -903,13 +964,9 @@
     }
 
     _refreshFarm(element) {
-      const farms = this.store.data.farms;
-      if (!farms) {
-        return;
-      }
       const $element = $(element);
       const label = $element.attr('aria-label') ?? '';
-      const farm = Object.entries(farms).find(([type]) => label.toLowerCase().includes(type))?.[1];
+      const farm = Object.entries(this.store.data.farms).find(([type]) => label.toLowerCase().includes(type))?.[1];
       if (!farm) {
         return;
       }
@@ -917,6 +974,37 @@
       const lifetime = formatLifetime(farm.expire - now);
       $element.find('.cm-sc-farm-lifetime').remove();
       $element.append(`<div class="cm-sc-farm-lifetime ${lifetime.color}">${lifetime.text}</div>`);
+    }
+
+    _refreshSpam(element) {
+      const $spamOption = $(element);
+      if ($spamOption.closest('.dropdownList').length === 0) {
+        return;
+      }
+      const label = $spamOption
+        .contents()
+        .filter((_, x) => x.nodeType === Node.TEXT_NODE)
+        .text();
+      const spam = Object.entries(this.store.data.spams).find(([id]) =>
+        label.toLowerCase().includes(this.store.SPAM_ID_MAP[id]),
+      )?.[1];
+      $spamOption.addClass('cm-sc-spam-option');
+      if (!spam || !spam.since) {
+        return;
+      }
+      if ($spamOption.find('.diminishedIconWrapper___ntun9').length > 0) {
+        return;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const elapsed = formatLifetime(now - spam.since);
+      if (!spam.accurate) {
+        elapsed.text = '> ' + elapsed.text;
+      }
+      if (elapsed.hours >= 24 * 8) {
+        elapsed.text = '> 7d';
+      }
+      $spamOption.find('.cm-sc-spam-elapsed').remove();
+      $spamOption.append(`<div class="cm-sc-spam-elapsed ${elapsed.color}">${elapsed.text}</div>`);
     }
   }
   const scammingObserver = new ScammingObserver();
@@ -926,8 +1014,7 @@
       scammingObserver.stop();
       return;
     }
-    scammingObserver.store.updateTargets(data.DB?.crimesByType?.targets);
-    scammingObserver.store.updateFarms(data.DB?.additionalInfo?.currentOngoing);
+    scammingObserver.store.update(data);
     scammingObserver.onNewData();
   }
 
@@ -1174,6 +1261,14 @@
       .cm-sc-farm-lifetime {
         padding-top: 2px;
         text-align: center;
+      }
+      .cm-sc-spam-option .levelLabel___LNbg8,
+      .cm-sc-spam-option .separator___C2skk {
+        display: none;
+      }
+      .cm-sc-spam-elapsed {
+        position: absolute;
+        right: -5px;
       }
     `);
   }
