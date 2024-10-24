@@ -942,7 +942,7 @@
           $email.parent().removeClass('cm-sc-hint-hidden');
         }
         $crimeOption.attr('data-cm-action', solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
-        $crimeOption.toggleClass('cm-sc-unsynced', target.unsynced);
+        $crimeOption.toggleClass('cm-sc-unsynced', target.unsynced ?? false);
         const lastSolution = this.store.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
