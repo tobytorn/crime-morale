@@ -926,6 +926,7 @@
           $email.parent().removeClass('cm-sc-hint-hidden');
         }
         $crimeOption.attr('data-cm-action', solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
+        $crimeOption.toggleClass('cm-sc-unsynced', target.unsynced);
         const lastSolution = this.store.lastSolutions[target.id];
         $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
         $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
@@ -1218,7 +1219,7 @@
       .cm-sc-seen[data-cm-action=accelerate] .response-type-button:nth-child(4):after,
       .cm-sc-seen[data-cm-action=capitalize] .response-type-button:nth-child(5):after {
         content: '\u2713';
-        color: green;
+        color: var(--crimes-green-color);
         position: absolute;
         top: 0;
         right: 0;
@@ -1227,9 +1228,16 @@
         line-height: 1;
         z-index: 999;
       }
+      .cm-sc-seen.cm-sc-unsynced[data-cm-action=strong] .response-type-button:nth-child(1):after,
+      .cm-sc-seen.cm-sc-unsynced[data-cm-action=soft] .response-type-button:nth-child(2):after,
+      .cm-sc-seen.cm-sc-unsynced[data-cm-action=back] .response-type-button:nth-child(3):after,
+      .cm-sc-seen.cm-sc-unsynced[data-cm-action=accelerate] .response-type-button:nth-child(4):after,
+      .cm-sc-seen.cm-sc-unsynced[data-cm-action=capitalize] .response-type-button:nth-child(5):after {
+        content: '?';
+      }
       .cm-sc-seen[data-cm-action=abandon] .response-type-button:after {
         content: '\u2715';
-        color: red;
+        color: var(--crimes-stats-criticalFails-color);
         position: absolute;
         top: 0;
         right: 0;
