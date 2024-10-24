@@ -486,7 +486,7 @@
     }
 
     solve(round, pip, resolvingBitmap, multiplierUsed) {
-      const result = this.visit(round - multiplierUsed, resolvingBitmap, multiplierUsed);
+      const result = this.visit(round - multiplierUsed, resolvingBitmap, multiplierUsed, pip);
       return result[pip];
     }
 
@@ -494,8 +494,9 @@
      * @param {number} round
      * @param {bigint} resolvingBitmap
      * @param {number} minMulti
+     * @param {number | undefined} singlePip
      */
-    visit(round, resolvingBitmap, minMulti) {
+    visit(round, resolvingBitmap, minMulti, singlePip = undefined) {
       const dpKey = BigInt(round) | (resolvingBitmap << 6n);
       const visited = this.dp.get(dpKey);
       if (visited) {
@@ -523,7 +524,8 @@
         return result;
       }
       const driftArray = this._getDriftArray(resolvingBitmap);
-      for (let pip = 0; pip < 50; pip++) {
+      const [pipBegin, pipEnd] = singlePip !== undefined ? [singlePip, singlePip + 1] : [0, 50];
+      for (let pip = pipBegin; pip < pipEnd; pip++) {
         if (this.bar[pip] === 'fail') {
           result[pip] = {
             value: this.CELL_VALUE_MAP.fail,
