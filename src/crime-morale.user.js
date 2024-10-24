@@ -1079,6 +1079,23 @@
       if (!isNaN(morale)) {
         updateMorale(morale);
       }
+      // Show hidden debug button on double-click
+      let lastClick = 0; // dblclick event doesn't work well on mobile
+      $('#crime-morale-value')
+        .parent()
+        .on('click', function () {
+          if (Date.now() - lastClick > 1000) {
+            lastClick = Date.now();
+            return;
+          }
+          const data = {
+            morale: getValue(STORAGE_MORALE),
+            scamming: getValue('scamming'),
+          };
+          const export_uri = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data))}`;
+          $(this).replaceWith(`<a download="crime-morale-debug.json" href="${export_uri}"
+            class="torn-btn" style="display:inline-block;">Export Debug Data</a>`);
+        });
     }, 500);
   }
 
