@@ -463,25 +463,8 @@
       this.initialRound = round;
       this.initialSuspicion = suspicion;
 
+      this.driftArrayMap = new Map(); // (resolvingBitmap) => number[50]
       this.dp = new Map(); // (resolvingBitmap | round) => {value: number, action: string, multi: number}[50]
-
-      this.drift = new Array(50);
-      for (let pip = 0; pip < 50; pip++) {
-        let newPip = pip;
-        switch (this.bar[pip]) {
-          case 'temptation':
-            while (newPip + 1 < 50 && (!this.SAFE_CELL.has(this.bar[newPip]) || this.bar[newPip] === 'temptation')) {
-              newPip++;
-            }
-            break;
-          case 'sensitivity':
-            while (newPip > 0 && this.bar[newPip] !== 'neutral') {
-              newPip--;
-            }
-            break;
-        }
-        this.drift[pip] = newPip;
-      }
 
       this.resolving = new Array(50);
       for (let pip = 0; pip < 50; pip++) {
@@ -539,6 +522,7 @@
         }
         return result;
       }
+      const driftArray = this._getDriftArray(resolvingBitmap);
       for (let pip = 0; pip < 50; pip++) {
         if (this.bar[pip] === 'fail') {
           result[pip] = {
@@ -591,7 +575,7 @@
             let totalValue = 0;
             for (let disp = minDisplacement; disp <= maxDisplacement; disp++) {
               const landingPip = Math.min(pip + disp, 49);
-              const newPip = this.drift[landingPip];
+              const newPip = driftArray[landingPip];
               if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
                 totalValue += this.CELL_VALUE_MAP.fail;
               } else {
@@ -613,6 +597,36 @@
         result[pip] = best;
       }
       return result;
+    }
+
+    _getDriftArray(resolvingBitmap) {
+      const cached = this.driftArrayMap.get(resolvingBitmap);
+      if (cached) {
+        return cached;
+      }
+      const driftArray = new Array(50);
+      this.driftArrayMap.set(resolvingBitmap, driftArray);
+      for (let pip = 0; pip < 50; pip++) {
+        let newPip = pip;
+        switch (this.bar[pip]) {
+          case 'temptation':
+            while (
+              newPip + 1 < 50 &&
+              (!this.SAFE_CELL.has(this.bar[newPip]) || this.bar[newPip] === 'temptation') &&
+              !this._isResolved(newPip, resolvingBitmap)
+            ) {
+              newPip++;
+            }
+            break;
+          case 'sensitivity':
+            while (newPip > 0 && this.bar[newPip] !== 'neutral' && !this._isResolved(newPip, resolvingBitmap)) {
+              newPip--;
+            }
+            break;
+        }
+        driftArray[pip] = newPip;
+      }
+      return driftArray;
     }
 
     _estimateSuspicion(round) {
