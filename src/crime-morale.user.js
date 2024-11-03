@@ -576,7 +576,7 @@
             const [minDisplacement, maxDisplacement] = displacementArray;
             let totalValue = 0;
             for (let disp = minDisplacement; disp <= maxDisplacement; disp++) {
-              const landingPip = Math.min(pip + disp, 49);
+              const landingPip = Math.max(Math.min(pip + disp, 49), 0);
               const newPip = driftArray[landingPip];
               if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
                 totalValue += this.CELL_VALUE_MAP.fail;
