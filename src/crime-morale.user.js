@@ -689,7 +689,7 @@
     update(data) {
       this._updateTargets(data.DB?.crimesByType?.targets);
       this._updateFarms(data.DB?.additionalInfo?.currentOngoing);
-      this._updateSpams(data.DB?.currentUserStats?.crimesByIDAttempts);
+      this._updateSpams(data.DB?.currentUserStats?.crimesByIDAttempts, data.DB?.crimesByType?.methods);
       this._save();
     }
 
@@ -783,14 +783,15 @@
       }
     }
 
-    _updateSpams(crimesByIDAttempts) {
-      if (!crimesByIDAttempts) {
+    _updateSpams(crimesByIDAttempts, methods) {
+      if (!crimesByIDAttempts || !methods) {
         return;
       }
       const now = Math.floor(Date.now() / 1000);
       for (const [id, count] of Object.entries(crimesByIDAttempts)) {
         const type = this.SPAM_ID_MAP[id];
-        if (!type) {
+        const method = methods.find((x) => String(x.crimeID) === id);
+        if (!type || !method) {
           continue;
         }
         const stored = this.data.spams[id];
@@ -801,12 +802,14 @@
             stored.since = now;
           }
           stored.ts = now;
+          stored.depreciation = method.depreciation;
         } else {
           this.data.spams[id] = {
             count,
             accurate: false,
             since: null,
             ts: now,
+            depreciation: method.depreciation,
           };
         }
       }
@@ -1006,10 +1009,8 @@
         label.toLowerCase().includes(this.store.SPAM_ID_MAP[id]),
       )?.[1];
       $spamOption.addClass('cm-sc-spam-option');
-      if (!spam || !spam.since) {
-        return;
-      }
-      if ($spamOption.find('.diminishedIconWrapper___ntun9').length > 0) {
+      $spamOption.find('.cm-sc-spam-elapsed').remove();
+      if (!spam || !spam.since || spam.depreciation) {
         return;
       }
       const now = Math.floor(Date.now() / 1000);
@@ -1020,7 +1021,6 @@
       if (elapsed.hours >= 24 * 8) {
         elapsed.text = '> 7d';
       }
-      $spamOption.find('.cm-sc-spam-elapsed').remove();
       $spamOption.append(`<div class="cm-sc-spam-elapsed ${elapsed.color}">${elapsed.text}</div>`);
     }
   }
