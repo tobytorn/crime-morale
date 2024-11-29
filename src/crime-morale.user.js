@@ -102,8 +102,9 @@
     });
   }
 
-  async function checkCardSkimming(params, data) {
-    if (params.get('typeID') !== '6') {
+  async function checkCardSkimming(params, reqBody, data) {
+    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+    if (crimeType !== '6') {
       return;
     }
     const now = Math.floor(Date.now() / 1000);
@@ -180,8 +181,9 @@
     });
   }
 
-  async function checkBurglary(params, data) {
-    if (params.get('typeID') !== '7') {
+  async function checkBurglary(params, reqBody, data) {
+    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+    if (crimeType !== '7') {
       return;
     }
     const props = data.DB?.crimesByType?.properties;
@@ -294,9 +296,10 @@
   let pickpocketingExitOb = null;
   let pickpocketingInterval = 0;
 
-  async function checkPickpocketing(params) {
-    if (params.get('typeID') !== '5') {
-      if (params.get('typeID') !== null) {
+  async function checkPickpocketing(params, reqBody) {
+    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+    if (crimeType !== '5') {
+      if (crimeType) {
         stopPickpocketing();
       }
       return;
@@ -1028,8 +1031,9 @@
   }
   const scammingObserver = new ScammingObserver();
 
-  async function checkScamming(params, data) {
-    if (params.get('typeID') !== '12') {
+  async function checkScamming(params, reqBody, data) {
+    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+    if (crimeType !== '12') {
       scammingObserver.stop();
       return;
     }
@@ -1037,12 +1041,12 @@
     scammingObserver.onNewData();
   }
 
-  async function onCrimeData(params, data) {
+  async function onCrimeData(params, reqBody, data) {
     await checkDemoralization(data);
-    await checkCardSkimming(params, data);
-    await checkBurglary(params, data);
-    await checkPickpocketing(params);
-    await checkScamming(params, data);
+    await checkCardSkimming(params, reqBody, data);
+    await checkBurglary(params, reqBody, data);
+    await checkPickpocketing(params, reqBody);
+    await checkScamming(params, reqBody, data);
   }
 
   function interceptFetch() {
@@ -1055,8 +1059,9 @@
         const url = new URL(args[0], location.origin);
         const params = new URLSearchParams(url.search);
         if (url.pathname === '/loader.php' && params.get('sid') === 'crimesData') {
+          const reqBody = args[1]?.body;
           const clonedRsp = rsp.clone();
-          await onCrimeData(params, await clonedRsp.json());
+          await onCrimeData(params, reqBody, await clonedRsp.json());
         }
       } catch {
         // ignore
