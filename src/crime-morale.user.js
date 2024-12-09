@@ -722,12 +722,14 @@
       this.unsyncedSet = new Set(Object.keys(this.data.targets));
       this.solvers = {};
       this.lastSolutions = {};
+      this.cash = undefined;
     }
 
     update(data) {
       this._updateTargets(data.DB?.crimesByType?.targets);
       this._updateFarms(data.DB?.additionalInfo?.currentOngoing);
       this._updateSpams(data.DB?.currentUserStats?.crimesByIDAttempts, data.DB?.crimesByType?.methods);
+      this.cash = data.DB?.user?.money;
       this._save();
     }
 
@@ -930,7 +932,7 @@
         for (const element of this.crimeOptions) {
           if (!element.classList.contains('cm-sc-seen')) {
             element.classList.add('cm-sc-seen');
-            this._refreshTarget(element);
+            this._refreshCrimeOption(element);
           }
         }
         for (const element of this.farmIcons) {
@@ -973,7 +975,7 @@
     onNewData() {
       this.start();
       for (const element of this.crimeOptions) {
-        this._refreshTarget(element);
+        this._refreshCrimeOption(element);
       }
       for (const element of this.farmIcons) {
         this._refreshFarm(element);
@@ -1016,6 +1018,11 @@
         <span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>
         <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
       </span>`;
+    }
+
+    _refreshCrimeOption(element) {
+      this._refreshTarget(element);
+      this._refreshFarmButton(element);
     }
 
     _refreshTarget(element) {
@@ -1083,6 +1090,14 @@
       if (target.multiplierUsed > 0) {
         $accButton.append(`<div class="cm-sc-multiplier">${target.multiplierUsed}</div>`);
       }
+    }
+
+    _refreshFarmButton(element) {
+      const $element = $(element);
+      if ($element.find('.emailAddresses___ky_qG').length === 0) {
+        return;
+      }
+      $element.find('.commitButtonSection___wJfnI button').toggleClass('cm-sc-low-cash', this.store.cash < 10000);
     }
 
     _refreshFarm(element) {
@@ -1458,6 +1473,16 @@
       }
       .cm-sc-algo.cm-sc-active:before {
         content: '\u21bb ';
+      }
+      .cm-sc-low-cash:after {
+        content: 'Low Cash';
+        color: var(--default-red-color);
+        position: absolute;
+        width: 100%;
+        left: 0;
+        top: calc(100% - 4px);
+        line-height: 1;
+        font-size: 12px;
       }
     `);
   }
