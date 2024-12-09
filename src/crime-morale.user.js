@@ -408,26 +408,41 @@
       return 0.02;
     }
     get FAILURE_COST_MAP() {
-      return {
-        1: 1,
-        20: 1,
-        40: 1,
-        60: 0.5,
-        80: 0.33,
-      };
+      return this.algo === 'merit'
+        ? {
+            1: 0,
+            20: 0,
+            40: 0,
+            60: 0,
+            80: 0,
+          }
+        : {
+            1: 1,
+            20: 1,
+            40: 1,
+            60: 0.5,
+            80: 0.33,
+          };
     }
     get CONCERN_SUCCESS_RATE() {
       return 0.5;
     }
     get CELL_VALUE_MAP() {
-      return {
-        low: 1.5,
-        medium: 2.5,
-        high: 3.5,
-        fail: -20, // The penalty should be -10. I add a bit to it for demoralization and chain bonus lost.
-      };
+      return this.algo === 'merit'
+        ? {
+            low: 2,
+            medium: 2,
+            high: 2,
+            fail: -20,
+          }
+        : {
+            low: 0.5,
+            medium: 1.5,
+            high: 2.5,
+            fail: -20, // The penalty should be -10. I add a bit to it for demoralization and chain bonus lost.
+          };
     }
-    get SAFE_CELL() {
+    get SAFE_CELL_SET() {
       return new Set(['neutral', 'low', 'medium', 'high', 'temptation']);
     }
     get DISPLACEMENT() {
@@ -460,8 +475,27 @@
         },
       };
     }
+    get MERIT_MASK_MAP() {
+      return {
+        temptation: 1n << 50n,
+        sensitivity: 1n << 51n,
+        hesitation: 1n << 52n,
+        concern: 1n << 53n,
+      };
+    }
+    get MERIT_REQUIREMENT_MASK() {
+      return 0xfn << 50n;
+    }
 
-    constructor(bar, targetLevel, round, suspicion) {
+    /**
+     * @param {'exp' | 'merit'} algo
+     * @param {('neutral' | 'low' | 'medium' | 'high' | 'temptation' | 'sensitivity' | 'hesitation' | 'concern' | 'fail')[]} bar
+     * @param {1 | 20 | 40 | 60 | 80} targetLevel
+     * @param {number} round
+     * @param {number} suspicion
+     */
+    constructor(algo, bar, targetLevel, round, suspicion) {
+      this.algo = algo;
       this.bar = bar;
       this.targetLevel = targetLevel;
       this.failureCost = this.FAILURE_COST_MAP[this.targetLevel];
@@ -471,27 +505,38 @@
       this.driftArrayMap = new Map(); // (resolvingBitmap) => number[50]
       this.dp = new Map(); // (resolvingBitmap | round) => {value: number, action: string, multi: number}[50]
 
-      this.resolving = new Array(50);
+      this.resolvingMasks = new Array(50);
       for (let pip = 0; pip < 50; pip++) {
-        if (this.resolving[pip]) {
+        if (this.resolvingMasks[pip]) {
           continue;
         }
         if (this.bar[pip] !== 'hesitation' && this.bar[pip] !== 'concern') {
-          this.resolving[pip] = 0n;
+          this.resolvingMasks[pip] = 0n;
           continue;
         }
-        let mask = 0n;
+        let mask = this.algo === 'merit' ? this.MERIT_MASK_MAP[this.bar[pip]] : 0n;
         for (let endPip = pip; endPip < 50 && this.bar[endPip] === this.bar[pip]; endPip++) {
           mask += 1n << BigInt(endPip);
         }
         for (let endPip = pip; endPip < 50 && this.bar[endPip] === this.bar[pip]; endPip++) {
-          this.resolving[endPip] = mask;
+          this.resolvingMasks[endPip] = mask;
         }
       }
     }
 
-    solve(round, pip, resolvingBitmap, multiplierUsed) {
-      const result = this.visit(round - multiplierUsed, resolvingBitmap, multiplierUsed, pip);
+    /**
+     * @param {number} driftBitmap 1 for temptation triggered, 2 for sensitivity triggered
+     */
+    solve(round, pip, resolvingBitmap, multiplierUsed, driftBitmap) {
+      if (this.algo === 'merit') {
+        for (let pip = 0; pip < 50; pip++) {
+          if (this._isResolved(pip, resolvingBitmap)) {
+            resolvingBitmap |= this.MERIT_MASK_MAP[this.bar[pip]] ?? 0n;
+          }
+        }
+        resolvingBitmap |= BigInt(driftBitmap) << 50n;
+      }
+      const result = this._visit(round - multiplierUsed, resolvingBitmap, multiplierUsed, pip);
       return result[pip];
     }
 
@@ -501,7 +546,7 @@
      * @param {number} minMulti
      * @param {number | undefined} singlePip
      */
-    visit(round, resolvingBitmap, minMulti, singlePip = undefined) {
+    _visit(round, resolvingBitmap, minMulti, singlePip = undefined) {
       const dpKey = BigInt(round) | (resolvingBitmap << 6n);
       const visited = this.dp.get(dpKey);
       if (visited) {
@@ -511,43 +556,27 @@
       this.dp.set(dpKey, result);
       if (this._estimateSuspicion(round) >= 50) {
         for (let pip = 0; pip < 50; pip++) {
-          if (this.bar[pip] === 'fail') {
-            result[pip] = {
-              value: this.CELL_VALUE_MAP.fail,
-              action: 'fail',
-              multi: 0,
-            };
-            continue;
-          }
-          const value = (this.CELL_VALUE_MAP[this.bar[pip]] ?? 0) - 1;
-          result[pip] = {
-            value: Math.max(0, value),
-            action: value > 0 ? 'capitalize' : 'abandon',
-            multi: 0,
-          };
+          result[pip] = this._getCellResult(pip, resolvingBitmap);
         }
         return result;
       }
       const driftArray = this._getDriftArray(resolvingBitmap);
       const [pipBegin, pipEnd] = singlePip !== undefined ? [singlePip, singlePip + 1] : [0, 50];
       for (let pip = pipBegin; pip < pipEnd; pip++) {
+        const best = this._getCellResult(pip, resolvingBitmap);
         if (this.bar[pip] === 'fail') {
-          result[pip] = {
-            value: this.CELL_VALUE_MAP.fail,
-            action: 'fail',
-            multi: 0,
-          };
+          result[pip] = best;
           continue;
         }
         if (!this._isResolved(pip, resolvingBitmap)) {
           if (this.bar[pip] === 'hesitation') {
-            const resolvedResult = this.visit(round, resolvingBitmap | this.resolving[pip], 0);
+            const resolvedResult = this._visit(round, resolvingBitmap | this.resolvingMasks[pip], 0);
             result[pip] = resolvedResult[pip];
             continue;
           }
           if (this.bar[pip] === 'concern') {
-            const resolvedResult = this.visit(round + 1, resolvingBitmap | this.resolving[pip], 0);
-            const unresolvedResult = this.visit(round + 1, resolvingBitmap, 0);
+            const resolvedResult = this._visit(round + 1, resolvingBitmap | this.resolvingMasks[pip], 0);
+            const unresolvedResult = this._visit(round + 1, resolvingBitmap, 0);
             const value =
               resolvedResult[pip].value * this.CONCERN_SUCCESS_RATE +
               (unresolvedResult[pip].value - this.failureCost) * (1 - this.CONCERN_SUCCESS_RATE) -
@@ -560,19 +589,9 @@
             continue;
           }
         }
-        const best = {
-          value: 0,
-          action: 'abandon',
-          multi: 0,
-        };
-        const capValue = this.CELL_VALUE_MAP[this.bar[pip]] ?? 0;
-        if (capValue > 1) {
-          best.value = capValue - 1;
-          best.action = 'capitalize';
-        }
         for (let multi = minMulti; multi <= 5; multi++) {
           const suspicionAfterMulti = this._estimateSuspicion(round + multi);
-          const nextRoundResult = this.visit(round + multi + 1, resolvingBitmap, 0);
+          const nextRoundResult = this._visit(round + multi + 1, resolvingBitmap, 0);
           for (const action of ['strong', 'soft', 'back']) {
             const displacementArray = this.DISPLACEMENT[this.targetLevel.toString()]?.[action]?.[multi];
             if (!displacementArray) {
@@ -586,11 +605,15 @@
               if (landingPip < suspicionAfterMulti || newPip < suspicionAfterMulti) {
                 totalValue += this.CELL_VALUE_MAP.fail;
               } else {
-                if (!this.SAFE_CELL.has(this.bar[landingPip]) && !this._isResolved(landingPip, resolvingBitmap)) {
+                if (!this.SAFE_CELL_SET.has(this.bar[landingPip]) && !this._isResolved(landingPip, resolvingBitmap)) {
                   totalValue -= this.failureCost;
                 }
                 totalValue -= this.BASE_ACTION_COST;
-                totalValue += nextRoundResult[newPip].value;
+                const landingResult =
+                  this.algo === 'merit' && newPip !== landingPip
+                    ? this._visit(round + multi + 1, resolvingBitmap | this.MERIT_MASK_MAP[this.bar[landingPip]], 0)
+                    : nextRoundResult;
+                totalValue += landingResult[newPip].value;
               }
             }
             const avgValue = totalValue / (maxDisplacement - minDisplacement + 1) - this.BASE_ACTION_COST * multi;
@@ -619,7 +642,7 @@
           case 'temptation':
             while (
               newPip + 1 < 50 &&
-              (!this.SAFE_CELL.has(this.bar[newPip]) || this.bar[newPip] === 'temptation') &&
+              (!this.SAFE_CELL_SET.has(this.bar[newPip]) || this.bar[newPip] === 'temptation') &&
               !this._isResolved(newPip, resolvingBitmap)
             ) {
               newPip++;
@@ -634,6 +657,15 @@
         driftArray[pip] = newPip;
       }
       return driftArray;
+    }
+
+    _getCellResult(pip, resolvingBitmap) {
+      let value = this.CELL_VALUE_MAP[this.bar[pip]] ?? 0;
+      if (this.algo === 'merit' && (resolvingBitmap & this.MERIT_REQUIREMENT_MASK) !== this.MERIT_REQUIREMENT_MASK) {
+        value = Math.min(value, 0);
+      }
+      const action = this.bar[pip] === 'fail' ? 'fail' : value > 0 ? 'capitalize' : 'abandon';
+      return { value, action, multi: 0 };
     }
 
     _estimateSuspicion(round) {
@@ -686,6 +718,7 @@
       this.data.targets = this.data.targets ?? {};
       this.data.farms = this.data.farms ?? {};
       this.data.spams = this.data.spams ?? {};
+      this.data.defaultAlgo = this.data.defaultAlgo ?? 'exp';
       this.unsyncedSet = new Set(Object.keys(this.data.targets));
       this.solvers = {};
       this.lastSolutions = {};
@@ -695,6 +728,18 @@
       this._updateTargets(data.DB?.crimesByType?.targets);
       this._updateFarms(data.DB?.additionalInfo?.currentOngoing);
       this._updateSpams(data.DB?.currentUserStats?.crimesByIDAttempts, data.DB?.crimesByType?.methods);
+      this._save();
+    }
+
+    setDefaultAlgo(algo) {
+      this.data.defaultAlgo = algo;
+      this._save();
+    }
+
+    changeAlgo(target) {
+      target.algos.push(target.algos.shift());
+      target.solution = null;
+      this._solve(target);
       this._save();
     }
 
@@ -709,6 +754,7 @@
       for (const target of targets) {
         const stored = this.data.targets[target.subID];
         if (stored && !target.new && target.bar) {
+          stored.driftBitmap = stored.driftBitmap ?? 0; // data migration for v1.4.6
           let updated = false;
           if (stored.multiplierUsed !== target.multiplierUsed || stored.pip !== target.pip) {
             stored.multiplierUsed = target.multiplierUsed;
@@ -732,6 +778,14 @@
               if (target.bar[pip] === 'neutral' && (BigInt(stored.resolvingBitmap) & (1n << BigInt(pip))) === 0n) {
                 stored.resolvingBitmap = (BigInt(stored.resolvingBitmap) | (1n << BigInt(pip))).toString();
                 updated = true;
+              }
+            }
+            if (target.firstPip) {
+              if (stored.bar[target.firstPip] === 'temptation') {
+                stored.driftBitmap |= 1;
+              }
+              if (stored.bar[target.firstPip] === 'sensitivity') {
+                stored.driftBitmap |= 2;
               }
             }
           }
@@ -761,6 +815,8 @@
             bar: target.bar ?? null,
             suspicion: 0,
             resolvingBitmap: '0',
+            driftBitmap: 0,
+            algos: null,
             solution: null,
             unsynced: round > 0,
           };
@@ -826,11 +882,29 @@
       }
       this.lastSolutions[target.id] = target.solution;
       let solver = this.solvers[target.id];
-      if (!solver || target.suspicion > 0) {
-        solver = new ScammingSolver(target.bar, target.level, target.round, target.suspicion);
+      if (!solver || solver.algo !== target.algos?.[0] || target.suspicion > 0) {
+        if (!target.algos) {
+          target.algos = this._isMeritFeasible(target) ? ['exp', 'merit'] : ['exp'];
+          const defaultIndex = target.algos.indexOf(this.data.defaultAlgo);
+          if (defaultIndex > 0) {
+            target.algos = [...target.algos.slice(defaultIndex), ...target.algos.slice(0, defaultIndex)];
+          }
+        }
+        solver = new ScammingSolver(target.algos[0], target.bar, target.level, target.round, target.suspicion);
         this.solvers[target.id] = solver;
       }
-      target.solution = solver.solve(target.round, target.pip, BigInt(target.resolvingBitmap), target.multiplierUsed);
+      target.solution = solver.solve(
+        target.round,
+        target.pip,
+        BigInt(target.resolvingBitmap),
+        target.multiplierUsed,
+        target.driftBitmap,
+      );
+    }
+
+    _isMeritFeasible(target) {
+      const cells = new Set(target.bar);
+      return cells.has('temptation') && cells.has('sensitivity') && cells.has('hesitation') && cells.has('concern');
     }
   }
 
@@ -839,6 +913,8 @@
       this.store = new ScammingStore();
       this.crimeOptions = null;
       this.farmIcons = null;
+      this.spamOptions = null;
+      this.virtualLists = null;
       this.observer = new MutationObserver((mutations) => {
         const isAdd = mutations.some((mutation) => {
           for (const added of mutation.addedNodes) {
@@ -869,6 +945,12 @@
             this._refreshSpam(element);
           }
         }
+        for (const element of this.virtualLists) {
+          if (!element.classList.contains('cm-sc-seen')) {
+            element.classList.add('cm-sc-seen');
+            this._refreshSettings(element);
+          }
+        }
       });
     }
 
@@ -879,6 +961,7 @@
       this.crimeOptions = document.body.getElementsByClassName('crime-option');
       this.farmIcons = document.body.getElementsByClassName('scraperPhisher___oy1Wn');
       this.spamOptions = document.body.getElementsByClassName('optionWithLevelRequirement___cHH35');
+      this.virtualLists = document.body.getElementsByClassName('virtualList___noLef');
       this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
     }
 
@@ -910,6 +993,11 @@
           abandon: 'Abandon',
           resolve: 'Resolve',
         }[solution.action] ?? 'N/A';
+      const algoText =
+        {
+          exp: 'Exp',
+          merit: 'Merit',
+        }[target.algos?.[0]] ?? 'Score';
       const score = Math.floor(solution.value * 100);
       const scoreColor = score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green';
       const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
@@ -924,7 +1012,7 @@
         fullRspText = fullRspText !== '' ? fullRspText : `(${actionText})`;
       }
       return `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">
-        <span>Score: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
+        <span><span class="cm-sc-algo">${algoText}</span>: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
         <span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>
         <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
       </span>`;
@@ -957,6 +1045,15 @@
         $crimeOption.find('.cm-sc-hint-button').on('click', () => {
           $email.parent().toggleClass('cm-sc-hint-hidden');
         });
+        if (target.algos?.length > 1) {
+          const $algo = $crimeOption.find('.cm-sc-algo');
+          $algo.addClass('t-blue');
+          $algo.addClass('cm-sc-active');
+          $algo.on('click', () => {
+            this.store.changeAlgo(target);
+            this._refreshTarget(element);
+          });
+        }
       } else {
         $email.parent().addClass('cm-sc-hint-hidden');
       }
@@ -1027,6 +1124,24 @@
         elapsed.text = '> 7d';
       }
       $spamOption.append(`<div class="cm-sc-spam-elapsed ${elapsed.color}">${elapsed.text}</div>`);
+    }
+
+    _refreshSettings(element) {
+      const store = this.store;
+      const defaultAlgo = store.data.defaultAlgo;
+      const $settings = $(`<div class="cm-sc-settings">
+        <span>Default Strategy:</span>
+        <span class="cm-sc-algo-option t-blue" data-cm-value="exp">Exp</span>
+        <span class="cm-sc-algo-option t-blue" data-cm-value="merit">Merit</span>
+      </div>`);
+      $settings.children(`[data-cm-value="${defaultAlgo}"]`).addClass('cm-sc-active');
+      $settings.children('.cm-sc-algo-option').on('click', function () {
+        const $this = $(this);
+        store.setDefaultAlgo($this.attr('data-cm-value'));
+        $this.siblings().removeClass('cm-sc-active');
+        $this.addClass('cm-sc-active');
+      });
+      $settings.insertBefore(element);
     }
   }
   const scammingObserver = new ScammingObserver();
@@ -1317,6 +1432,32 @@
       .cm-sc-spam-elapsed {
         position: absolute;
         right: -5px;
+      }
+      .cm-sc-settings {
+        height: 40px;
+        width: 100%;
+        background: var(--default-bg-panel-color););
+        border-bottom: 1px solid var(--crimes-crimeOption-borderBottomColor);
+        padding-left: 10px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      .cm-sc-algo-option {
+        cursor: pointer;
+        line-height: 1.5;
+        border-top: 2px solid #0000;
+        border-bottom: 2px solid #0000;
+      }
+      .cm-sc-algo-option.cm-sc-active {
+        border-bottom-color: var(--default-blue-color);
+      }
+      .cm-sc-algo.cm-sc-active {
+        cursor: pointer;
+      }
+      .cm-sc-algo.cm-sc-active:before {
+        content: '\u21bb ';
       }
     `);
   }
