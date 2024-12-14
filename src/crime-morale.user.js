@@ -88,9 +88,6 @@
   const cardSkimmingDelays = [];
   let cardSkimmingUpdateInterval = 0;
 
-  const burglaryData = [];
-  let burglaryUpdateInterval = 0;
-
   function updateCardSkimmingDelay($texts, delays) {
     delays.forEach((delay, index) => {
       if (delay < 0) {
@@ -145,75 +142,137 @@
     clearInterval(cardSkimmingUpdateInterval);
   }
 
-  function updateBurglary($options, data) {
-    const now = Math.floor(Date.now() / 1000);
-    data.forEach((property, index) => {
-      const $option = $options.eq(index);
-      const confidence = property.confidence;
-      const $icon = $option.find('[class*=propertyIcon___]');
-      $icon.find('.cm-confidence').remove();
-      if (confidence >= 50) {
-        $icon.css('position', 'relative');
-        $icon.append(`<div class="cm-confidence t-green" style="
-          position: absolute;
-          bottom: 0;
-          width: 100%;
-          text-align: center;
-          padding: 2px;
-          box-sizing: border-box;
-          background: var(--default-bg-panel-color);
-        ">${property.confidence}%</div>`);
+  class BurglaryObserver {
+    constructor() {
+      this.properties = null;
+      this.crimeOptions = null;
+      this.observer = new MutationObserver((mutations) => {
+        const isAdd = mutations.some((mutation) => {
+          for (const added of mutation.addedNodes) {
+            if (added instanceof HTMLElement) {
+              return true;
+            }
+          }
+          return false;
+        });
+        if (!isAdd) {
+          return;
+        }
+        for (const element of this.crimeOptions) {
+          if (!element.classList.contains('cm-bg-seen')) {
+            element.classList.add('cm-bg-seen');
+            this._refreshCrimeOption(element);
+          }
+        }
+      });
+    }
+
+    start() {
+      if (this.crimeOptions) {
+        return;
       }
+      this.crimeOptions = document.body.getElementsByClassName('crime-option');
+      this.observer.observe($('.burglary-root')[0], { subtree: true, childList: true });
+    }
+
+    stop() {
+      this.crimeOptions = null;
+      this.observer.disconnect();
+    }
+
+    onNewData(data) {
+      this.start();
+      this.properties = data.DB?.crimesByType?.properties;
+      for (const element of this.crimeOptions) {
+        this._refreshCrimeOption(element);
+      }
+    }
+
+    _refreshCrimeOption(element) {
+      if (!this.properties) {
+        return;
+      }
+      const $element = $(element);
+      const $title = $element.find('[class*=crimeOptionSection___]').first();
+      $title.find('.cm-bg-lifetime').remove();
+      const guessedProperty = this._guessCrimeOptionData($element);
+      const property = this._checkCrimeOptionData($element, guessedProperty);
+      if (!property) {
+        $element.removeAttr('data-cm-id');
+        return;
+      }
+      $element.attr('data-cm-id', property.subID);
+      const now = Math.floor(Date.now() / 1000);
       const lifetime = formatLifetime(property.expire - now);
-      const $title = $option.find('[class*=crimeOptionSection___]').first();
-      $title.find('.cm-lifetime').remove();
-      if (lifetime.hours >= 0 && lifetime.hours <= 48) {
+      if (lifetime.hours >= 0) {
         $title.css('position', 'relative');
-        $title.append(`<div class="cm-lifetime ${lifetime.color}" style="
-          position: absolute;
-          top: 0;
-          right: 0;
-          padding: 2px;
-          background: var(--default-bg-panel-color);
-          border: 1px solid darkgray;
-        ">${lifetime.text}</div>`);
+        $title.append(`<div class="cm-bg-lifetime ${lifetime.color}">${lifetime.text}</div>`);
       }
-    });
+    }
+
+    _guessCrimeOptionData($crimeOption) {
+      const savedId = $crimeOption.attr('data-cm-id');
+      if (savedId) {
+        return this.properties.find((x) => x.subID === savedId);
+      }
+      const $item = $crimeOption.closest('.virtual-item');
+      if ($item.prev().hasClass('lastOfGroup___YNUeQ')) {
+        return this.properties[0];
+      }
+      let prevId = undefined;
+      $item.prevAll().each(function () {
+        prevId = $(this).find('.crime-option[data-cm-id]').attr('data-cm-id');
+        if (prevId) {
+          return false; // break the loop
+        }
+      });
+      const prevIndex = this.properties.findIndex((x) => prevId && x.subID === prevId);
+      if (prevIndex >= 0) {
+        // Since we always scan crime options in document order,
+        // $prevItemWithId and $item should correspond to adjacent data entries.
+        return this.properties[prevIndex + 1];
+      }
+      if ($item.index() === 0) {
+        const $nextOptionWithId = $item.nextAll().find('.crime-option[data-cm-id]').first();
+        const nextId = $nextOptionWithId.attr('data-cm-id');
+        const nextIndex = this.properties.findIndex((x) => x.subID && x.subID === nextId);
+        const nextPos = $nextOptionWithId.closest('.virtual-item').index();
+        if (nextIndex >= 0 && nextPos >= 0) {
+          return this.properties[nextIndex - nextPos];
+        }
+      }
+      return undefined;
+    }
+
+    _checkCrimeOptionData($crimeOption, property) {
+      if (property === undefined) {
+        return undefined;
+      }
+      const { title, titleType } = this._getCrimeOptionTitle($crimeOption);
+      return titleType && property[titleType] === title ? property : undefined;
+    }
+
+    _getCrimeOptionTitle($crimeOption) {
+      const mobileTitle = $crimeOption.find('.title___kOWyb').text();
+      if (mobileTitle !== '') {
+        return { title: mobileTitle, titleType: 'mobileTitle' };
+      }
+      const textNode = $crimeOption.find('.crimeOptionSection___hslpu')[0]?.firstChild;
+      if (textNode?.nodeType === Node.TEXT_NODE) {
+        return { title: textNode.textContent, titleType: 'title' };
+      }
+      return { title: null, titleType: null };
+    }
   }
+  const burglaryObserver = new BurglaryObserver();
 
   async function checkBurglary(params, reqBody, data) {
     const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
     if (crimeType !== '7') {
+      burglaryObserver.stop();
       return;
     }
-    const props = data.DB?.crimesByType?.properties;
-    if (!props?.length) {
-      return;
-    }
-    burglaryData.length = 0;
-    burglaryData.push(...props);
-
-    const $options = $('[class*=crimeOptionGroup___]').last().find('[class*=crimeOption___]');
-    if ($options.length === 0) {
-      if (burglaryUpdateInterval === 0) {
-        // This is the first fetch.
-        burglaryUpdateInterval = setInterval(() => {
-          const $optionsInInterval = $('[class*=crimeOptionGroup___]').last().find('[class*=crimeOption___]');
-          if ($optionsInInterval.length !== burglaryData.length) {
-            return;
-          }
-          clearInterval(burglaryUpdateInterval);
-          updateBurglary($optionsInInterval, burglaryData);
-          burglaryData.length = 0;
-        }, 1000);
-      }
-      return;
-    }
-    if ($options.length === burglaryData.length) {
-      updateBurglary($options, burglaryData);
-    }
-    burglaryData.length = 0;
-    clearInterval(burglaryUpdateInterval);
+    burglaryObserver.onNewData(data);
   }
 
   const PP_CYCLING = 0;
@@ -1242,6 +1301,15 @@
 
   function renderStyle() {
     addStyle(`
+      .cm-bg-lifetime {
+        position: absolute;
+        top: 0;
+        right: 0;
+        padding: 2px;
+        background: var(--default-bg-panel-color);
+        border: 1px solid darkgray;
+      }
+
       :root {
         --cm-pp-level-1: #37b24d;
         --cm-pp-level-2: #95af14;
