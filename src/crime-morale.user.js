@@ -85,63 +85,6 @@
     await setValue(STORAGE_MORALE, morale);
   }
 
-  const cardSkimmingDelays = [];
-  let cardSkimmingUpdateInterval = 0;
-
-  function updateCardSkimmingDelay($texts, delays) {
-    delays.forEach((delay, index) => {
-      if (delay < 0) {
-        return;
-      }
-      const minutes = Math.floor(delay / 60);
-      const color = minutes < 10 ? 't-red' : minutes < 30 ? 't-yellow' : minutes < 60 ? 't-green' : 't-gray-c';
-      $texts.eq(index).html(`<span class="${color}">${minutes}'</span>`);
-    });
-  }
-
-  async function checkCardSkimming(params, reqBody, data) {
-    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
-    if (crimeType !== '6') {
-      return;
-    }
-    const now = Math.floor(Date.now() / 1000);
-    const subCrimes = data.DB?.crimesByType?.subCrimes;
-    if (!subCrimes?.length) {
-      return;
-    }
-    cardSkimmingDelays.length = 0;
-    for (let i = 0; i < subCrimes.length; i++) {
-      const delay = subCrimes[i]?.crimeInfo?.timeWhenUpdated - now;
-      if (isNaN(delay)) {
-        cardSkimmingDelays.length = 0;
-        return;
-      }
-      cardSkimmingDelays.push(subCrimes[i]?.crimeInfo?.timeWhenUpdated - now);
-    }
-
-    const $texts = $('[class*=crimeOption___] span[class*=statusText___]');
-    if ($texts.length === 0) {
-      if (cardSkimmingUpdateInterval === 0) {
-        // This is the first fetch.
-        cardSkimmingUpdateInterval = setInterval(() => {
-          const $textsInInterval = $('[class*=crimeOption___] span[class*=statusText___]');
-          if ($textsInInterval.length !== cardSkimmingDelays.length) {
-            return;
-          }
-          clearInterval(cardSkimmingUpdateInterval);
-          updateCardSkimmingDelay($textsInInterval, cardSkimmingDelays);
-          cardSkimmingDelays.length = 0;
-        }, 1000);
-      }
-      return;
-    }
-    if ($texts.length === cardSkimmingDelays.length) {
-      updateCardSkimmingDelay($texts, cardSkimmingDelays);
-    }
-    cardSkimmingDelays.length = 0;
-    clearInterval(cardSkimmingUpdateInterval);
-  }
-
   class BurglaryObserver {
     constructor() {
       this.properties = null;
@@ -1232,7 +1175,6 @@
 
   async function onCrimeData(params, reqBody, data) {
     await checkDemoralization(data);
-    await checkCardSkimming(params, reqBody, data);
     await checkBurglary(params, reqBody, data);
     await checkPickpocketing(params, reqBody);
     await checkScamming(params, reqBody, data);
