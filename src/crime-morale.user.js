@@ -87,6 +87,8 @@
 
   class BurglaryObserver {
     constructor() {
+      this.data = getValue('burglary', {});
+      this.data.favorite = this.data.favorite ?? [];
       this.properties = null;
       this.crimeOptions = null;
       this.observer = new MutationObserver((mutations) => {
@@ -126,6 +128,10 @@
     onNewData(data) {
       this.start();
       this.properties = data.DB?.crimesByType?.properties;
+      this._refreshCrimeOptions();
+    }
+
+    _refreshCrimeOptions() {
       for (const element of this.crimeOptions) {
         this._refreshCrimeOption(element);
       }
@@ -151,6 +157,14 @@
         $title.css('position', 'relative');
         $title.append(`<div class="cm-bg-lifetime ${lifetime.color}">${lifetime.text}</div>`);
       }
+      $element.find('.cm-bg-favor').remove();
+      const $favor = $('<div class="cm-bg-favor"></div>');
+      $favor.toggleClass('cm-bg-active', this.data.favorite.includes(property.title));
+      $element.find('.crime-image').append($favor);
+      $favor.on('click', () => {
+        this._toggleFavorite(property.title);
+        this._refreshCrimeOptions();
+      });
     }
 
     _guessCrimeOptionData($crimeOption) {
@@ -205,6 +219,16 @@
         return { title: textNode.textContent, titleType: 'title' };
       }
       return { title: null, titleType: null };
+    }
+
+    _toggleFavorite(title) {
+      const index = this.data.favorite.indexOf(title);
+      if (index >= 0) {
+        this.data.favorite.splice(index, 1);
+      } else {
+        this.data.favorite.push(title);
+      }
+      setValue('burglary', this.data);
     }
   }
   const burglaryObserver = new BurglaryObserver();
@@ -1228,6 +1252,7 @@
           }
           const data = {
             morale: getValue(STORAGE_MORALE),
+            burglary: getValue('burglary'),
             scamming: getValue('scamming'),
           };
           const export_uri = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data))}`;
@@ -1250,6 +1275,29 @@
         padding: 2px;
         background: var(--default-bg-panel-color);
         border: 1px solid darkgray;
+      }
+      .cm-bg-favor {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        background: #fffc;
+        height: 20px;
+        width: 20px;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        pointer-events: auto !important;
+      }
+      .cm-bg-favor:after {
+        content: '\u2606';
+        display: block;
+        width: 100%;
+        height: 100%;
+        text-align: center;
+      }
+      .cm-bg-favor.cm-bg-active:after {
+        content: '\u2605';
+        color: orange;
       }
 
       :root {
