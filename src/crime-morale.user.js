@@ -330,12 +330,12 @@
       }
       return;
     }
-    const $wrapper = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+    const $wrapper = $('.pickpocketing-root');
     if ($wrapper.length === 0) {
       if (pickpocketingInterval === 0) {
         // This is the first fetch.
         pickpocketingInterval = setInterval(() => {
-          const $wrapperInInterval = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+          const $wrapperInInterval = $('.pickpocketing-root');
           if ($wrapperInInterval.length === 0) {
             return;
           }
@@ -350,7 +350,7 @@
   }
 
   function refreshPickpocketing() {
-    const $wrapper = $('.pickpocketing-root [class*=crimeOptionGroup___]');
+    const $wrapper = $('.pickpocketing-root');
     const now = Date.now();
     // Releasing reference to removed elements to avoid memory leak
     pickpocketingExitOb.disconnect();
