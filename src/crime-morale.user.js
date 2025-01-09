@@ -1213,7 +1213,7 @@
       try {
         const url = new URL(args[0], location.origin);
         const params = new URLSearchParams(url.search);
-        if (url.pathname === '/loader.php' && params.get('sid') === 'crimesData') {
+        if (url.pathname === '/page.php' && params.get('sid') === 'crimesData') {
           const reqBody = args[1]?.body;
           const clonedRsp = rsp.clone();
           await onCrimeData(params, reqBody, await clonedRsp.json());
