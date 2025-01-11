@@ -233,8 +233,7 @@
   }
   const burglaryObserver = new BurglaryObserver();
 
-  async function checkBurglary(params, reqBody, data) {
-    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+  async function checkBurglary(crimeType, data) {
     if (crimeType !== '7') {
       burglaryObserver.stop();
       return;
@@ -322,12 +321,9 @@
   let pickpocketingExitOb = null;
   let pickpocketingInterval = 0;
 
-  async function checkPickpocketing(params, reqBody) {
-    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+  async function checkPickpocketing(crimeType) {
     if (crimeType !== '5') {
-      if (crimeType) {
-        stopPickpocketing();
-      }
+      stopPickpocketing();
       return;
     }
     const $wrapper = $('.pickpocketing-root');
@@ -1187,8 +1183,7 @@
   }
   const scammingObserver = new ScammingObserver();
 
-  async function checkScamming(params, reqBody, data) {
-    const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+  async function checkScamming(crimeType, data) {
     if (crimeType !== '12') {
       scammingObserver.stop();
       return;
@@ -1197,11 +1192,11 @@
     scammingObserver.onNewData();
   }
 
-  async function onCrimeData(params, reqBody, data) {
+  async function onCrimeData(crimeType, data) {
     await checkDemoralization(data);
-    await checkBurglary(params, reqBody, data);
-    await checkPickpocketing(params, reqBody);
-    await checkScamming(params, reqBody, data);
+    await checkBurglary(crimeType, data);
+    await checkPickpocketing(crimeType);
+    await checkScamming(crimeType, data);
   }
 
   function interceptFetch() {
@@ -1213,10 +1208,11 @@
       try {
         const url = new URL(args[0], location.origin);
         const params = new URLSearchParams(url.search);
-        if (url.pathname === '/page.php' && params.get('sid') === 'crimesData') {
-          const reqBody = args[1]?.body;
+        const reqBody = args[1]?.body;
+        const crimeType = params.get('typeID') ?? reqBody?.get('typeID');
+        if (url.pathname === '/page.php' && params.get('sid') === 'crimesData' && crimeType) {
           const clonedRsp = rsp.clone();
-          await onCrimeData(params, reqBody, await clonedRsp.json());
+          await onCrimeData(crimeType, await clonedRsp.json());
         }
       } catch {
         // ignore
