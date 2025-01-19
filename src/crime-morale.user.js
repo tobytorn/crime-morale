@@ -614,7 +614,8 @@
         for (let multi = minMulti; multi <= 5; multi++) {
           const suspicionAfterMulti = this._estimateSuspicion(round + multi);
           const nextRoundResult = this._visit(round + multi + 1, resolvingBitmap, 0);
-          for (const action of ['strong', 'soft', 'back']) {
+          const feasibleActions = pip > 0 ? ['strong', 'soft', 'back'] : ['strong', 'soft'];
+          for (const action of feasibleActions) {
             const displacementArray = this.DISPLACEMENT[this.targetLevel.toString()]?.[action]?.[multi];
             if (!displacementArray) {
               continue;
