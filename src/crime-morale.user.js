@@ -780,10 +780,16 @@
         const stored = this.data.targets[target.subID];
         if (stored && !target.new && target.bar) {
           stored.driftBitmap = stored.driftBitmap ?? 0; // data migration for v1.4.6
+          stored.turns = stored.turns ?? target.turns ?? 0; // data migration for v1.4.10
           let updated = false;
-          if (stored.multiplierUsed !== target.multiplierUsed || stored.pip !== target.pip) {
+          if (
+            stored.multiplierUsed !== target.multiplierUsed ||
+            stored.pip !== target.pip ||
+            stored.turns !== (target.turns ?? 0)
+          ) {
             stored.multiplierUsed = target.multiplierUsed;
             stored.pip = target.pip;
+            stored.turns = target.turns ?? 0;
             stored.expire = target.expire;
             updated = true;
           }
@@ -816,7 +822,7 @@
           }
           if (updated) {
             // Round is not accurate for concern and hesitation.
-            stored.round++;
+            stored.round = stored.unsynced ? this._estimateRound(target) : stored.round + 1;
           }
           if (!stored.bar) {
             stored.bar = target.bar;
@@ -834,6 +840,7 @@
             email: target.email,
             level: this.TARGET_LEVEL_MAP[target.scamMethod.toLowerCase()] ?? 999,
             round,
+            turns: target.turns ?? 0,
             multiplierUsed,
             pip,
             expire: target.expire,
@@ -924,6 +931,19 @@
         BigInt(target.resolvingBitmap),
         target.multiplierUsed,
         target.driftBitmap,
+      );
+    }
+
+    _estimateRound(target) {
+      // This "turns" from the server gets +2 from temptation and sensitivity (round +1 in these cases) and
+      // gets +1 from hesitation (round +2 in this case).
+      // The "*Attempt" fields from the server are at most 1 even with multiple attempts.
+      return Math.max(
+        0,
+        (target.turns ?? 0) -
+          (target.temptationAttempt ?? 0) -
+          (target.sensitivityAttempt ?? 0) +
+          (target.hesitationAttempt ?? 0),
       );
     }
 
