@@ -570,9 +570,12 @@
      */
     _visit(round, resolvingBitmap, minMulti, singlePip = undefined) {
       const dpKey = BigInt(round) | (resolvingBitmap << 6n);
-      const visited = this.dp.get(dpKey);
-      if (visited) {
-        return visited;
+      // Cached solutions do not respect `minMulti`.
+      if (minMulti === 0) {
+        const visited = this.dp.get(dpKey);
+        if (visited) {
+          return visited;
+        }
       }
       const result = new Array(50);
       this.dp.set(dpKey, result);
