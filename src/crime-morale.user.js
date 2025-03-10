@@ -446,8 +446,15 @@
             80: 0.33,
           };
     }
-    get CONCERN_SUCCESS_RATE() {
-      return 0.5;
+    get CONCERN_SUCCESS_RATE_MAP() {
+      return {
+        'young adult': 0.55,
+        'middle-aged': 0.5,
+        senior: 0.45,
+        professional: 0.4,
+        affluent: 0.35,
+        '': 0.5,
+      };
     }
     get CELL_VALUE_MAP() {
       return this.algo === 'merit'
@@ -515,14 +522,16 @@
      * @param {1 | 20 | 40 | 60 | 80} targetLevel
      * @param {number} round
      * @param {number} suspicion
+     * @param {'young adult' | 'middle-aged' | 'senior' | 'professional' | 'affluent' | ''} mark
      */
-    constructor(algo, bar, targetLevel, round, suspicion) {
+    constructor(algo, bar, targetLevel, round, suspicion, mark) {
       this.algo = algo;
       this.bar = bar;
       this.targetLevel = targetLevel;
       this.failureCost = this.FAILURE_COST_MAP[this.targetLevel];
       this.initialRound = round;
       this.initialSuspicion = suspicion;
+      this.mark = mark;
 
       this.driftArrayMap = new Map(); // (resolvingBitmap) => number[50]
       this.dp = new Map(); // (resolvingBitmap | round) => {value: number, action: string, multi: number}[50]
@@ -602,9 +611,10 @@
           if (this.bar[pip] === 'concern') {
             const resolvedResult = this._visit(round + 1, resolvingBitmap | this.resolvingMasks[pip], 0);
             const unresolvedResult = this._visit(round + 1, resolvingBitmap, 0);
+            const concernSuccessRate = this.CONCERN_SUCCESS_RATE_MAP[this.mark] ?? this.CONCERN_SUCCESS_RATE_MAP[''];
             const value =
-              resolvedResult[pip].value * this.CONCERN_SUCCESS_RATE +
-              (unresolvedResult[pip].value - this.failureCost) * (1 - this.CONCERN_SUCCESS_RATE) -
+              resolvedResult[pip].value * concernSuccessRate +
+              (unresolvedResult[pip].value - this.failureCost) * (1 - concernSuccessRate) -
               this.BASE_ACTION_COST;
             result[pip] = {
               value: Math.max(0, value),
@@ -784,6 +794,7 @@
         if (stored && !target.new && target.bar) {
           stored.driftBitmap = stored.driftBitmap ?? 0; // data migration for v1.4.6
           stored.turns = stored.turns ?? target.turns ?? 0; // data migration for v1.4.10
+          stored.mark = (target.target ?? '').toLowerCase();
           let updated = false;
           if (
             stored.multiplierUsed !== target.multiplierUsed ||
@@ -842,6 +853,7 @@
             id: target.subID,
             email: target.email,
             level: this.TARGET_LEVEL_MAP[target.scamMethod.toLowerCase()] ?? 999,
+            mark: '',
             round,
             turns: target.turns ?? 0,
             multiplierUsed,
