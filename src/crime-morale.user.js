@@ -374,7 +374,7 @@
         const iconPosStr = $this.find('[class*=timerCircle___] [class*=icon___]').css('background-position-y');
         const iconPosMatch = iconPosStr?.match(/(-?\d+)px/);
         const iconPos = -parseInt(iconPosMatch?.[1] ?? '');
-        const build = $this.find('[class*=physicalPropsButton___]').text().trim().toLowerCase();
+        const build = $this.find('[class*=physicalProps___]').text().trim().toLowerCase();
         for (const [mark, markInfo] of Object.entries(PP_MARKS)) {
           if (markAndTime.startsWith(mark.toLowerCase())) {
             if (markInfo.status.includes(iconPos) && markInfo.build.some((b) => build.includes(b.toLowerCase()))) {
