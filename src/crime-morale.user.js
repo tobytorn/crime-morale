@@ -4,7 +4,7 @@
 // @description A comprehensive tool for Crime 2.0
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
-// @version     1.4.10
+// @version     1.4.11
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
