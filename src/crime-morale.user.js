@@ -1522,6 +1522,7 @@
         position: absolute;
         bottom: 0;
         right: 0;
+        color: var(--crimes-baseText-color);
         text-align: right;
         font-size: 10px;
         line-height: 1;
