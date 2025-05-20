@@ -427,10 +427,10 @@
   // Maximize extra exp (capitalization exp - total cost)
   class ScammingSolver {
     get BASE_ACTION_COST() {
-      return 0.02;
+      return this.algo === 'meritGrift' ? 0.001 : 0.02;
     }
     get FAILURE_COST_MAP() {
-      return this.algo === 'merit'
+      return this.algo === 'merit' || this.algo === 'meritGrift'
         ? {
             1: 0,
             20: 0,
@@ -463,6 +463,13 @@
             medium: 2,
             high: 2,
             fail: -20,
+          }
+        : this.algo === 'meritGrift'
+        ? {
+            low: 0,
+            medium: 1,
+            high: 1,
+            fail: 0,
           }
         : {
             low: 0.5,
@@ -517,7 +524,7 @@
     }
 
     /**
-     * @param {'exp' | 'merit'} algo
+     * @param {'exp' | 'merit' | 'meritGrift'} algo
      * @param {('neutral' | 'low' | 'medium' | 'high' | 'temptation' | 'sensitivity' | 'hesitation' | 'concern' | 'fail')[]} bar
      * @param {1 | 20 | 40 | 60 | 80} targetLevel
      * @param {number} round
@@ -755,6 +762,7 @@
       this.data.farms = this.data.farms ?? {};
       this.data.spams = this.data.spams ?? {};
       this.data.defaultAlgo = this.data.defaultAlgo ?? 'exp';
+      this.data.algoNotice = this.data.algoNotice ?? {};
       this.unsyncedSet = new Set(Object.keys(this.data.targets));
       this.solvers = {};
       this.lastSolutions = {};
@@ -778,6 +786,11 @@
       target.algos.push(target.algos.shift());
       target.solution = null;
       this._solve(target);
+      this._save();
+    }
+
+    setAlgoNoticeRead(algo) {
+      this.data.algoNotice[algo] = true;
       this._save();
     }
 
@@ -931,7 +944,13 @@
       let solver = this.solvers[target.id];
       if (!solver || solver.algo !== target.algos?.[0] || target.suspicion > 0) {
         if (!target.algos) {
-          target.algos = this._isMeritFeasible(target) ? ['exp', 'merit'] : ['exp'];
+          target.algos = ['exp'];
+          if (this._isDecepticonFeasible(target)) {
+            target.algos.push('merit');
+          }
+          if (this._isGriftHorseFeasible(target)) {
+            target.algos.push('meritGrift');
+          }
           const defaultIndex = target.algos.indexOf(this.data.defaultAlgo);
           if (defaultIndex > 0) {
             target.algos = [...target.algos.slice(defaultIndex), ...target.algos.slice(0, defaultIndex)];
@@ -969,9 +988,13 @@
       );
     }
 
-    _isMeritFeasible(target) {
+    _isDecepticonFeasible(target) {
       const cells = new Set(target.bar);
       return cells.has('temptation') && cells.has('sensitivity') && cells.has('hesitation') && cells.has('concern');
+    }
+
+    _isGriftHorseFeasible(target) {
+      return target.mark === 'affluent';
     }
   }
 
@@ -1050,7 +1073,7 @@
       }
     }
 
-    _buildHintHtml(target, solution, lastSolution) {
+    _buildHintHtml(target, solution, lastSolution, showGriftNotice) {
       const actionText =
         {
           strong: 'Fast Fwd',
@@ -1060,13 +1083,21 @@
           abandon: 'Abandon',
           resolve: 'Resolve',
         }[solution.action] ?? 'N/A';
+      const algo = target.algos?.[0];
       const algoText =
         {
           exp: 'Exp',
-          merit: 'Merit',
-        }[target.algos?.[0]] ?? 'Score';
+          merit: 'Decep',
+          meritGrift: 'Grift',
+        }[algo] ?? 'Score';
       const score = Math.floor(solution.value * 100);
-      const scoreColor = score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green';
+      const scoreText = `${score}${algo === 'meritGrift' ? '%' : ''}`;
+      let scoreColor = '';
+      if (algo === 'meritGrift') {
+        scoreColor = score < 30 ? 't-red' : score < 60 ? 't-yellow' : 't-green';
+      } else {
+        scoreColor = score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green';
+      }
       const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
       const scoreDiffColor = scoreDiff > 0 ? 't-green' : 't-red';
       const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
@@ -1078,11 +1109,30 @@
         rspColor = 't-gray-c';
         fullRspText = fullRspText !== '' ? fullRspText : `(${actionText})`;
       }
-      return `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">
-        <span><span class="cm-sc-algo">${algoText}</span>: <span class="${scoreColor}">${score}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>
-        <span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>
-        <span class="cm-sc-hint-button t-blue">Lv${target.level}</span>
-      </span>`;
+      const $wrapper = $('<span class="cm-sc-info cm-sc-hint cm-sc-hint-content"></span>');
+      if (showGriftNotice) {
+        $wrapper.append(`<span><span class="cm-sc-algo">${algoText}</span></span>`);
+        $wrapper.append('<span class="cm-sc-notice t-blue">Click to read about this strategy</span>');
+        $wrapper.children('.cm-sc-notice').on('click', () => {
+          const msg =
+            'Warning: The "Grift Horse" strategy is highly aggressive and does NOT avoid critical failures. ' +
+            'You may lose a significant amount of crime experience.\n\n' +
+            'Click OK to proceed with this risky strategy, or Cancel to choose a safer alternative.';
+          if (confirm(msg)) {
+            this.store.setAlgoNoticeRead(algo);
+            location.reload();
+          }
+        });
+      } else {
+        $wrapper.append(
+          `<span><span class="cm-sc-algo">${algoText}</span>: <span class="${scoreColor}">${scoreText}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>`,
+        );
+        $wrapper.append(
+          `<span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>`,
+        );
+      }
+      $wrapper.append(`<span class="cm-sc-hint-button t-blue">Lv${target.level}</span>`);
+      return $wrapper;
     }
 
     _refreshCrimeOption(element) {
@@ -1109,10 +1159,17 @@
         if (!hasHint) {
           $email.parent().removeClass('cm-sc-hint-hidden');
         }
-        $crimeOption.attr('data-cm-action', solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
-        $crimeOption.toggleClass('cm-sc-unsynced', target.unsynced ?? false);
+        const algo = target.algos?.[0];
+        const showGriftNotice = algo === 'meritGrift' && !this.store.data.algoNotice[algo];
+        const actionAttr = showGriftNotice
+          ? ''
+          : solution.multi > target.multiplierUsed
+          ? 'accelerate'
+          : solution.action;
+        $crimeOption.attr('data-cm-action', actionAttr);
+        $crimeOption.toggleClass('cm-sc-unsynced', !showGriftNotice && (target.unsynced ?? false));
         const lastSolution = this.store.lastSolutions[target.id];
-        $email.parent().append(this._buildHintHtml(target, solution, lastSolution));
+        $email.parent().append(this._buildHintHtml(target, solution, lastSolution, showGriftNotice));
         $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
         $crimeOption.find('.cm-sc-hint-button').on('click', () => {
           $email.parent().toggleClass('cm-sc-hint-hidden');
@@ -1212,7 +1269,8 @@
       const $settings = $(`<div class="cm-sc-settings">
         <span>Default Strategy:</span>
         <span class="cm-sc-algo-option t-blue" data-cm-value="exp">Exp</span>
-        <span class="cm-sc-algo-option t-blue" data-cm-value="merit">Merit</span>
+        <span class="cm-sc-algo-option t-blue" data-cm-value="merit">Decepticon</span>
+        <span class="cm-sc-algo-option t-blue" data-cm-value="meritGrift">Grift Horse</span>
       </div>`);
       $settings.children(`[data-cm-value="${defaultAlgo}"]`).addClass('cm-sc-active');
       $settings.children('.cm-sc-algo-option').on('click', function () {
@@ -1460,6 +1518,7 @@
       .cm-sc-info {
         transform: translateY(1px);
       }
+      .cm-sc-notice,
       .cm-sc-hint-button {
         cursor: pointer;
       }
@@ -1475,6 +1534,7 @@
         white-space: nowrap;
         overflow: hidden;
       }
+      .cm-sc-notice,
       .cm-sc-hint-action {
         flex-shrink: 1;
         overflow: hidden;
