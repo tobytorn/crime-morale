@@ -937,7 +937,14 @@
             target.algos = [...target.algos.slice(defaultIndex), ...target.algos.slice(0, defaultIndex)];
           }
         }
-        solver = new ScammingSolver(target.algos[0], target.bar, target.level, target.round, target.suspicion);
+        solver = new ScammingSolver(
+          target.algos[0],
+          target.bar,
+          target.level,
+          target.round,
+          target.suspicion,
+          target.mark,
+        );
         this.solvers[target.id] = solver;
       }
       target.solution = solver.solve(
