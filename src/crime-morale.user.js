@@ -1260,6 +1260,9 @@
       if (elapsed.hours >= 24 * 8) {
         elapsed.text = '> 7d';
       }
+      if (elapsed.hours >= 24 && elapsed.hours < 72) {
+        elapsed.color = 't-green';
+      }
       $spamOption.append(`<div class="cm-sc-spam-elapsed ${elapsed.color}">${elapsed.text}</div>`);
     }
 
