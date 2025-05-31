@@ -1509,7 +1509,7 @@
       .cm-pp-level-5 [class*=commitButton___] {
         border: 2px solid var(--cm-pp-level-5);
       }
-      .cm-pp-best-build:not(.crime-option-locked) [class*=physicalPropsButton___]:before {
+      .cm-pp-best-build:not(.crime-option-locked) [class*=physicalProps___]:before {
         content: '\u2713 ';
         font-weight: bold;
         color: var(--cm-pp-level-2);
