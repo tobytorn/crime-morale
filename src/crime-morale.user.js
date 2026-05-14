@@ -1006,54 +1006,45 @@
       this.farmIcons = null;
       this.spamOptions = null;
       this.virtualLists = null;
-      this.observer = new MutationObserver((mutations) => {
-        const isAdd = mutations.some((mutation) => {
-          for (const added of mutation.addedNodes) {
-            if (added instanceof HTMLElement) {
-              return true;
-            }
+
+      this.observer = new MutationObserver(() => {
+        if (!this.crimeOptions) this.start();
+
+        Array.from(this.crimeOptions || []).forEach(el => {
+          if (!el.classList.contains('cm-sc-seen')) {
+            el.classList.add('cm-sc-seen');
+            this._refreshCrimeOption(el);
           }
-          return false;
         });
-        if (!isAdd) {
-          return;
-        }
-        for (const element of this.crimeOptions) {
-          if (!element.classList.contains('cm-sc-seen')) {
-            element.classList.add('cm-sc-seen');
-            this._refreshCrimeOption(element);
+        Array.from(this.farmIcons || []).forEach(el => {
+          if (!el.classList.contains('cm-sc-seen')) {
+            el.classList.add('cm-sc-seen');
+            this._refreshFarm(el);
           }
-        }
-        for (const element of this.farmIcons) {
-          if (!element.classList.contains('cm-sc-seen')) {
-            element.classList.add('cm-sc-seen');
-            this._refreshFarm(element);
+        });
+        Array.from(this.spamOptions || []).forEach(el => {
+          if (!el.classList.contains('cm-sc-seen')) {
+            el.classList.add('cm-sc-seen');
+            this._refreshSpam(el);
           }
-        }
-        for (const element of this.spamOptions) {
-          if (!element.classList.contains('cm-sc-seen')) {
-            element.classList.add('cm-sc-seen');
-            this._refreshSpam(element);
+        });
+        Array.from(this.virtualLists || []).forEach(el => {
+          if (!el.classList.contains('cm-sc-seen')) {
+            el.classList.add('cm-sc-seen');
+            this._refreshSettings(el);
           }
-        }
-        for (const element of this.virtualLists) {
-          if (!element.classList.contains('cm-sc-seen')) {
-            element.classList.add('cm-sc-seen');
-            this._refreshSettings(element);
-          }
-        }
+        });
       });
     }
 
     start() {
-      if (this.crimeOptions) {
-        return;
-      }
-      this.crimeOptions = document.body.getElementsByClassName('crime-option');
-      this.farmIcons = document.body.getElementsByClassName('scraperPhisher___oy1Wn');
-      this.spamOptions = document.body.getElementsByClassName('optionWithLevelRequirement___cHH35');
-      this.virtualLists = document.body.getElementsByClassName('virtualList___noLef');
-      this.observer.observe($('.scamming-root')[0], { subtree: true, childList: true });
+      this.crimeOptions = document.getElementsByClassName('crime-option');
+      this.farmIcons = document.querySelectorAll('[class*="scraperPhisher"], [aria-label*="Farm"], [aria-label*="Phisher"]');
+      this.spamOptions = document.querySelectorAll('button[data-testid="dropdown-toggler"] [class*="optionWithLevelRequirement"]');
+      this.virtualLists = document.getElementsByClassName('virtualList___noLef');
+
+      const root = document.querySelector('.scamming-root');
+      if (root) this.observer.observe(root, { subtree: true, childList: true });
     }
 
     stop() {
@@ -1063,77 +1054,128 @@
 
     onNewData() {
       this.start();
-      for (const element of this.crimeOptions) {
-        this._refreshCrimeOption(element);
-      }
-      for (const element of this.farmIcons) {
-        this._refreshFarm(element);
-      }
-      for (const element of this.spamOptions) {
-        this._refreshSpam(element);
-      }
+      Array.from(this.crimeOptions || []).forEach(el => this._refreshCrimeOption(el));
+      Array.from(this.farmIcons || []).forEach(el => this._refreshFarm(el));
+      Array.from(this.spamOptions || []).forEach(el => this._refreshSpam(el));
     }
 
     _buildHintHtml(target, solution, lastSolution, showGriftNotice) {
-      const actionText =
-        {
-          strong: 'Fast Fwd',
-          soft: 'Soft Fwd',
-          back: 'Back',
-          capitalize: '$$$',
-          abandon: 'Abandon',
-          resolve: 'Resolve',
-        }[solution.action] ?? 'N/A';
+      const actionText = { strong: 'Fast Fwd', soft: 'Soft Fwd', back: 'Back', capitalize: '$$$', abandon: 'Abandon', resolve: 'Resolve' }[solution.action] ?? 'N/A';
       const algo = target.algos?.[0];
-      const algoText =
-        {
-          exp: 'Exp',
-          merit: 'Decep',
-          meritGrift: 'Grift',
-        }[algo] ?? 'Score';
+      const algoText = { exp: 'Exp', merit: 'Decep', meritGrift: 'Grift' }[algo] ?? 'Score';
       const score = Math.floor(solution.value * 100);
       const scoreText = `${score}${algo === 'meritGrift' ? '%' : ''}`;
-      let scoreColor = '';
-      if (algo === 'meritGrift') {
-        scoreColor = score < 30 ? 't-red' : score < 60 ? 't-yellow' : 't-green';
-      } else {
-        scoreColor = score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green';
-      }
+      const scoreColor = algo === 'meritGrift'
+        ? (score < 30 ? 't-red' : score < 60 ? 't-yellow' : 't-green')
+        : (score < 30 ? 't-red' : score < 100 ? 't-yellow' : 't-green');
       const scoreDiff = lastSolution ? score - Math.floor(lastSolution.value * 100) : 0;
       const scoreDiffColor = scoreDiff > 0 ? 't-green' : 't-red';
       const scoreDiffText = scoreDiff !== 0 ? `(${scoreDiff > 0 ? '+' : ''}${scoreDiff})` : '';
       let rspText = solution.multi > target.multiplierUsed ? 'Accel' : actionText;
-      let rspColor = '';
-      let fullRspText = solution.multi > 0 ? `(${target.multiplierUsed}/${solution.multi} + ${actionText})` : '';
-      if (target.unsynced) {
-        rspText = 'Unsynced';
-        rspColor = 't-gray-c';
-        fullRspText = fullRspText !== '' ? fullRspText : `(${actionText})`;
-      }
-      const $wrapper = $('<span class="cm-sc-info cm-sc-hint cm-sc-hint-content"></span>');
+      if (target.unsynced) rspText = 'Unsynced';
+
+      let html = `<span class="cm-sc-info cm-sc-hint cm-sc-hint-content">`;
       if (showGriftNotice) {
-        $wrapper.append(`<span><span class="cm-sc-algo">${algoText}</span></span>`);
-        $wrapper.append('<span class="cm-sc-notice t-blue">Click to read about this strategy</span>');
-        $wrapper.children('.cm-sc-notice').on('click', () => {
-          const msg =
-            'Warning: The "Grift Horse" strategy is highly aggressive and does NOT avoid critical failures. ' +
-            'You may lose a significant amount of crime experience.\n\n' +
-            'Click OK to proceed with this risky strategy, or Cancel to choose a safer alternative.';
-          if (confirm(msg)) {
-            this.store.setAlgoNoticeRead(algo);
-            location.reload();
-          }
-        });
+        html += `<span><span class="cm-sc-algo">${algoText}</span></span><span class="cm-sc-notice t-blue">Click to read about this strategy</span>`;
       } else {
-        $wrapper.append(
-          `<span><span class="cm-sc-algo">${algoText}</span>: <span class="${scoreColor}">${scoreText}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>`,
-        );
-        $wrapper.append(
-          `<span class="cm-sc-hint-action"><span class="${rspColor}">${rspText}</span> <span class="t-gray-c">${fullRspText}</span></span>`,
-        );
+        html += `<span><span class="cm-sc-algo">${algoText}</span>: <span class="${scoreColor}">${scoreText}</span><span class="${scoreDiffColor}">${scoreDiffText}</span></span>`;
+        html += `<span class="cm-sc-hint-action"><span>${rspText}</span></span>`;
       }
-      $wrapper.append(`<span class="cm-sc-hint-button t-blue">Lv${target.level}</span>`);
-      return $wrapper;
+      html += `<span class="cm-sc-hint-button t-blue">Lv${target.level}</span></span>`;
+      return html;
+    }
+
+    _refreshTarget(element) {
+      console.log('[Crime Morale] _refreshTarget called');
+
+      const emailSpan = element.querySelector('span[class*="email___"]');
+      if (!emailSpan) {
+        console.log('[Crime Morale] No email span found');
+        return;
+      }
+
+      const email = emailSpan.textContent.trim();
+      console.log(`[Crime Morale] Found email: ${email}`);
+
+      const target = Object.values(this.store.data.targets).find(x => x.email === email);
+      if (!target) {
+        console.log(`[Crime Morale] No stored target for ${email}`);
+        return;
+      }
+
+      console.log(`[Crime Morale] MATCHED target ${email} - applying UI`);
+
+      element.querySelectorAll('.cm-sc-info').forEach(e => e.remove());
+      const parent = emailSpan.parentElement;
+      if (parent) parent.classList.add('cm-sc-info-wrapper');
+
+      const solution = target.solution;
+      if (solution) {
+        const showGriftNotice = target.algos?.[0] === 'meritGrift' && !this.store.data.algoNotice?.['meritGrift'];
+        const actionAttr = showGriftNotice ? '' : (solution.multi > target.multiplierUsed ? 'accelerate' : solution.action);
+
+        element.setAttribute('data-cm-action', actionAttr);
+        if (!showGriftNotice && target.unsynced) element.classList.add('cm-sc-unsynced');
+
+        const lastSolution = this.store.lastSolutions?.[target.id];
+        parent.insertAdjacentHTML('beforeend', this._buildHintHtml(target, solution, lastSolution, showGriftNotice));
+        parent.insertAdjacentHTML('beforeend', `<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</span>`);
+
+        parent.querySelectorAll('.cm-sc-hint-button').forEach(btn => {
+          btn.addEventListener('click', () => parent.classList.toggle('cm-sc-hint-hidden'));
+        });
+
+        if (target.algos?.length > 1) {
+          const algoEl = parent.querySelector('.cm-sc-algo');
+          if (algoEl) {
+            algoEl.classList.add('t-blue', 'cm-sc-active');
+            algoEl.style.cursor = 'pointer';
+            algoEl.addEventListener('click', () => {
+              this.store.changeAlgo(target);
+              this._refreshTarget(element);
+            });
+          }
+        }
+      }
+
+      // Lifetime
+      const now = Math.floor(Date.now() / 1000);
+      const lifetime = formatLifetime(target.expire - now);
+      const lifeSpan = document.createElement('span');
+      lifeSpan.className = `cm-sc-info ${lifetime.color}`;
+      lifeSpan.textContent = lifetime.text;
+      emailSpan.before(lifeSpan);
+
+      // Cells
+      const cells = element.querySelectorAll('.persuasionBar___ [class*="cell___"]');
+      if (cells.length >= 50) {
+        cells.forEach(c => c.querySelectorAll('.cm-sc-scale').forEach(s => s.remove()));
+        for (let i = 0; i < 50; i++) {
+          const dist = i - target.pip;
+          const label = (dist % 5 !== 0 || dist === 0 || dist < -5) ? '' : (dist % 10 === 0 ? (dist / 10).toString() : "'");
+          const cell = cells[i];
+          if (!cell) continue;
+          let scale = cell.querySelector('.cm-sc-scale');
+          if (!scale) {
+            scale = document.createElement('div');
+            scale.className = 'cm-sc-scale';
+            cell.appendChild(scale);
+          }
+          scale.textContent = label;
+        }
+      }
+
+      // Multiplier
+      const accButton = element.querySelectorAll('.response-type-button')[3];
+      if (accButton) {
+        accButton.querySelectorAll('.cm-sc-multiplier').forEach(e => e.remove());
+        if (target.multiplierUsed > 0) {
+          const div = document.createElement('div');
+          div.className = 'cm-sc-multiplier';
+          div.textContent = target.multiplierUsed;
+          accButton.appendChild(div);
+        }
+      }
     }
 
     _refreshCrimeOption(element) {
@@ -1141,151 +1183,80 @@
       this._refreshFarmButton(element);
     }
 
-    _refreshTarget(element) {
-      const $crimeOption = $(element);
-      const $email = $crimeOption.find('span.email___gVRXx');
-      const email = $email.text();
-      const target = Object.values(this.store.data.targets).find((x) => x.email === email);
-      if (!target) {
-        return;
-      }
-      // clear old info elements
-      const hasHint = $crimeOption.find('.cm-sc-hint-content').length > 0;
-      $crimeOption.find('.cm-sc-info').remove();
-      $email.parent().addClass('cm-sc-info-wrapper');
-      $email.parent().children().addClass('cm-sc-orig-info');
-      // hint
-      const solution = target.solution;
-      if (solution) {
-        if (!hasHint) {
-          $email.parent().removeClass('cm-sc-hint-hidden');
-        }
-        const algo = target.algos?.[0];
-        const showGriftNotice = algo === 'meritGrift' && !this.store.data.algoNotice[algo];
-        const actionAttr = showGriftNotice
-          ? ''
-          : solution.multi > target.multiplierUsed
-          ? 'accelerate'
-          : solution.action;
-        $crimeOption.attr('data-cm-action', actionAttr);
-        $crimeOption.toggleClass('cm-sc-unsynced', !showGriftNotice && (target.unsynced ?? false));
-        const lastSolution = this.store.lastSolutions[target.id];
-        $email.parent().append(this._buildHintHtml(target, solution, lastSolution, showGriftNotice));
-        $email.parent().append(`<span class="cm-sc-info cm-sc-orig-info cm-sc-hint-button t-blue">Hint</div>`);
-        $crimeOption.find('.cm-sc-hint-button').on('click', () => {
-          $email.parent().toggleClass('cm-sc-hint-hidden');
-        });
-        if (target.algos?.length > 1) {
-          const $algo = $crimeOption.find('.cm-sc-algo');
-          $algo.addClass('t-blue');
-          $algo.addClass('cm-sc-active');
-          $algo.on('click', () => {
-            this.store.changeAlgo(target);
-            this._refreshTarget(element);
-          });
-        }
-      } else {
-        $email.parent().addClass('cm-sc-hint-hidden');
-      }
-      // lifetime
-      const now = Math.floor(Date.now() / 1000);
-      const lifetime = formatLifetime(target.expire - now);
-      $email.before(`<span class="cm-sc-info ${lifetime.color}">${lifetime.text}</div>`);
-      // scale
-      const $cells = $crimeOption.find('.cell___AfwZm');
-      if ($cells.length >= 50) {
-        $cells.find('.cm-sc-scale').remove();
-        // Ignore cells after the first 50, which are faded out soon
-        for (let i = 0; i < 50; i++) {
-          const dist = i - target.pip;
-          const label = dist % 5 !== 0 || dist === 0 || dist < -5 ? '' : dist % 10 === 0 ? (dist / 10).toString() : "'";
-          let $scale = $cells.eq(i).children('.cm-sc-scale');
-          if ($scale.length === 0) {
-            $scale = $('<div class="cm-sc-scale"></div>');
-            $cells.eq(i).append($scale);
-          }
-          $scale.text(label);
-        }
-      }
-      // multiplier
-      const $accButton = $crimeOption.find('.response-type-button').eq(3);
-      $accButton.find('.cm-sc-multiplier').remove();
-      if (target.multiplierUsed > 0) {
-        $accButton.append(`<div class="cm-sc-multiplier">${target.multiplierUsed}</div>`);
-      }
-    }
-
     _refreshFarmButton(element) {
-      const $element = $(element);
-      if ($element.find('.emailAddresses___ky_qG').length === 0) {
-        return;
-      }
-      $element.find('.commitButtonSection___wJfnI button').toggleClass('cm-sc-low-cash', this.store.cash < 10000);
+      const btn = element.querySelector('.commitButtonSection___ button');
+      if (btn) btn.classList.toggle('cm-sc-low-cash', this.store.cash < 10000);
     }
 
     _refreshFarm(element) {
-      const $element = $(element);
-      const label = $element.attr('aria-label') ?? '';
+      const label = element.getAttribute('aria-label') || '';
       const farm = Object.entries(this.store.data.farms).find(([type]) => label.toLowerCase().includes(type))?.[1];
-      if (!farm) {
-        return;
-      }
+      if (!farm) return;
+
       const now = Math.floor(Date.now() / 1000);
       const lifetime = formatLifetime(farm.expire - now);
-      $element.find('.cm-sc-farm-lifetime').remove();
-      $element.append(`<div class="cm-sc-farm-lifetime ${lifetime.color}">${lifetime.text}</div>`);
+      element.querySelectorAll('.cm-sc-farm-lifetime').forEach(e => e.remove());
+
+      const div = document.createElement('div');
+      div.className = `cm-sc-farm-lifetime ${lifetime.color}`;
+      div.textContent = lifetime.text;
+      element.appendChild(div);
     }
 
     _refreshSpam(element) {
-      const $spamOption = $(element);
-      if ($spamOption.closest('.dropdownList').length === 0) {
-        return;
-      }
-      const label = $spamOption
-        .contents()
-        .filter((_, x) => x.nodeType === Node.TEXT_NODE)
-        .text();
+      if (!element.closest('.dropdownList')) return;
+
+      const label = element.textContent.trim();
       const spam = Object.entries(this.store.data.spams).find(([id]) =>
-        label.toLowerCase().includes(this.store.SPAM_ID_MAP[id]),
+        label.toLowerCase().includes(this.store.SPAM_ID_MAP[id] || '')
       )?.[1];
-      $spamOption.addClass('cm-sc-spam-option');
-      $spamOption.find('.cm-sc-spam-elapsed').remove();
-      if (!spam || !spam.since || spam.depreciation) {
-        return;
-      }
+
+      element.classList.add('cm-sc-spam-option');
+      element.querySelectorAll('.cm-sc-spam-elapsed').forEach(e => e.remove());
+
+      if (!spam || !spam.since || spam.depreciation) return;
+
       const now = Math.floor(Date.now() / 1000);
-      const elapsed = formatLifetime(now - spam.since);
-      if (!spam.accurate) {
-        elapsed.text = '> ' + elapsed.text;
-      }
-      if (elapsed.hours >= 24 * 8) {
-        elapsed.text = '> 7d';
-      }
-      if (elapsed.hours >= 24 && elapsed.hours < 72) {
-        elapsed.color = 't-green';
-      }
-      $spamOption.append(`<div class="cm-sc-spam-elapsed ${elapsed.color}">${elapsed.text}</div>`);
+      let elapsed = formatLifetime(now - spam.since);
+      if (!spam.accurate) elapsed.text = '> ' + elapsed.text;
+      if (elapsed.hours >= 192) elapsed.text = '> 7d';
+
+      const div = document.createElement('div');
+      div.className = `cm-sc-spam-elapsed ${elapsed.color}`;
+      div.textContent = elapsed.text;
+      element.appendChild(div);
     }
 
     _refreshSettings(element) {
       const store = this.store;
       const defaultAlgo = store.data.defaultAlgo;
-      const $settings = $(`<div class="cm-sc-settings">
-        <span>Default Strategy:</span>
-        <span class="cm-sc-algo-option t-blue" data-cm-value="exp">Exp</span>
-        <span class="cm-sc-algo-option t-blue" data-cm-value="merit">Decepticon</span>
-        <span class="cm-sc-algo-option t-blue" data-cm-value="meritGrift">Grift Horse</span>
-      </div>`);
-      $settings.children(`[data-cm-value="${defaultAlgo}"]`).addClass('cm-sc-active');
-      $settings.children('.cm-sc-algo-option').on('click', function () {
-        const $this = $(this);
-        store.setDefaultAlgo($this.attr('data-cm-value'));
-        $this.siblings().removeClass('cm-sc-active');
-        $this.addClass('cm-sc-active');
+
+      const settingsHTML = `
+        <div class="cm-sc-settings">
+          <span>Default Strategy:</span>
+          <span class="cm-sc-algo-option t-blue" data-cm-value="exp">Exp</span>
+          <span class="cm-sc-algo-option t-blue" data-cm-value="merit">Decepticon</span>
+          <span class="cm-sc-algo-option t-blue" data-cm-value="meritGrift">Grift Horse</span>
+        </div>`.trim();
+
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = settingsHTML;
+      const settings = wrapper.firstElementChild;
+      if (!settings || !element?.parentNode) return;
+
+      settings.querySelectorAll('.cm-sc-algo-option').forEach(opt => {
+        if (opt.dataset.cmValue === defaultAlgo) opt.classList.add('cm-sc-active');
+        opt.addEventListener('click', () => {
+          store.setDefaultAlgo(opt.dataset.cmValue);
+          settings.querySelectorAll('.cm-sc-algo-option').forEach(o => o.classList.remove('cm-sc-active'));
+          opt.classList.add('cm-sc-active');
+        });
       });
-      $settings.insertBefore(element);
+
+      element.parentNode.insertBefore(settings, element);
     }
   }
+  
   const scammingObserver = new ScammingObserver();
 
   async function checkScamming(crimeType, data) {
