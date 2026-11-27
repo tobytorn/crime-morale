@@ -5,7 +5,7 @@
 // @author      tobytorn [1617955]
 // @match       https://www.torn.com/loader.php?sid=crimes*
 // @match       https://www.torn.com/page.php?sid=crimes*
-// @version     1.4.15
+// @version     1.4.16
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       unsafeWindow
@@ -1143,7 +1143,7 @@
 
     _refreshTarget(element) {
       const $crimeOption = $(element);
-      const $email = $crimeOption.find('span.email___ga8BY');
+      const $email = $crimeOption.find('[class*="emailAndMethod___"] span[class*="email___"]');
       const email = $email.text();
       const target = Object.values(this.store.data.targets).find((x) => x.email === email);
       if (!target) {
@@ -1192,7 +1192,7 @@
       const lifetime = formatLifetime(target.expire - now);
       $email.before(`<span class="cm-sc-info ${lifetime.color}">${lifetime.text}</div>`);
       // scale
-      const $cells = $crimeOption.find('.cell___ZwSaW');
+      const $cells = $crimeOption.find('[class*="cell___"]');
       if ($cells.length >= 50) {
         $cells.find('.cm-sc-scale').remove();
         // Ignore cells after the first 50, which are faded out soon
@@ -1217,10 +1217,10 @@
 
     _refreshFarmButton(element) {
       const $element = $(element);
-      if ($element.find('.emailAddresses___ky_qG').length === 0) {
+      if ($element.find('[class*="emailAddresses___"]').length === 0) {
         return;
       }
-      $element.find('.commitButtonSection___wJfnI button').toggleClass('cm-sc-low-cash', this.store.cash < 10000);
+      $element.find('[class*="commitButtonSection___"] button').toggleClass('cm-sc-low-cash', this.store.cash < 10000);
     }
 
     _refreshFarm(element) {
